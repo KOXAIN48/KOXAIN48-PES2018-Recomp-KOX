@@ -67,11 +67,43 @@ jobs:
           p = Path("android/app/src/main/java/com/pes2017/recomp/DeviceProfile.kt")
           s = p.read_text()
           old = "Tier.MEDIUM -> Preset(75, multisampling = true, fsr = true, fpsLimit = 60, lowMemory = false, heatScale = true, loadScale = false)"
-          new = "Tier.MEDIUM -> Preset(75, multisampling = true, fsr = true, fpsLimit = 60, lowMemory = false, heatScale = true, loadScale = true)"
+          new = "Tier.MEDIUM -> Preset(75, multisampling = true, fsr = true, fpsLimit = 60, lowMemory = false, heatScale = false, loadScale = false)"
           if s.count(old) != 1:
               raise SystemExit("Patch guard failed: expected exactly one Medium preset line")
           p.write_text(s.replace(old, new))
           PY
+
+          # Extend Frame Limit from 30-60 to 30-120 FPS in 5 FPS steps.
+          prefs = Path("android/app/src/main/java/com/pes2017/recomp/Prefs.kt")
+          ps = prefs.read_text()
+          ps, n_get = re.subn(r'\.coerceIn\(30, 60\)', '.coerceIn(30, 120)', ps)
+          if n_get != 2:
+              raise SystemExit(f"Frame Limit preference patch guard failed: {n_get}")
+          prefs.write_text(ps)
+
+          settings = Path("android/app/src/main/java/com/pes2017/recomp/SettingsActivity.kt")
+          ss = settings.read_text()
+          ss, n_bar = re.subn(r'bar\(R\.id\.fps_limit, R\.id\.fps_limit_label, 6,', 'bar(R.id.fps_limit, R.id.fps_limit_label, 18,', ss)
+          old_label = '{ if (it == 6) getString(R.string.fps_limit_off) else getString(R.string.fps_limit, 30 + it * 5) }'
+          if n_bar != 1 or ss.count(old_label) != 1:
+              raise SystemExit("Frame Limit slider patch guard failed")
+          ss = ss.replace(old_label, '{ getString(R.string.fps_limit, 30 + it * 5) }')
+          settings.write_text(ss)
+
+          game = Path("android/app/src/main/java/com/pes2017/recomp/GameActivity.kt")
+          gs = game.read_text()
+          old_limit = '''            prefs.frameGeneration -> "30"
+                      prefs.fpsLimit < 60 -> prefs.fpsLimit.toString()
+                      else -> ""'''
+          new_limit = '''            prefs.frameGeneration -> "30"
+                      else -> prefs.fpsLimit.toString()'''
+          if gs.count(old_limit) != 1:
+              raise SystemExit("Frame Limit native dispatch patch guard failed")
+          game.write_text(gs.replace(old_limit, new_limit))
+
+          frame_rate = Path("runtime/frame_rate.h").read_text()
+          if "limit >= kConsole" not in frame_rate or "com_maxfps" not in frame_rate:
+              raise SystemExit("Native FPS pacing support verification failed")
 
           # Extend the texture-memory slider to 12 GB (96 x 128 MB).
           python3 - <<'PY'
@@ -202,12 +234,15 @@ jobs:
 
           # Verify all KOX patches are present before compiling.
           checks = {
-              "Mali load scaling": "loadScale = true" in (root / "android/app/src/main/java/com/pes2017/recomp/DeviceProfile.kt").read_text(),
+              "Dynamic scaling disabled for render-bug isolation": "heatScale = false, loadScale = false" in (root / "android/app/src/main/java/com/pes2017/recomp/DeviceProfile.kt").read_text(),
               "12 GB texture range": "R.id.texture_label, 96," in settings.read_text() and ".coerceIn(1, 96)" in settings.read_text(),
               "refresh rate preference": "var displayRefreshRate: Int" in prefs.read_text(),
               "refresh rate selector": "Lock Display Refresh Rate" in settings.read_text(),
               "runtime refresh rate": "prefs.displayRefreshRate" in game.read_text(),
               "capture diagnostics migrated": "prefs.prefer60Hz" not in (root / "android/app/src/main/java/com/pes2017/recomp/CaptureSession.kt").read_text(),
+              "Frame Limit slider to 120": "R.id.fps_limit_label, 18," in settings.read_text(),
+              "Frame Limit preference range": ".coerceIn(30, 120)" in prefs.read_text(),
+              "Frame Limit native dispatch": "else -> prefs.fpsLimit.toString()" in game.read_text(),
           }
           for name, ok in checks.items():
               print(f"{name}: {'OK' if ok else 'MISSING'}")
@@ -236,8 +271,8 @@ jobs:
         working-directory: upstream/android
         env:
           PES17_VERSION_NAME: 0.3.2-kox
-          PES17_VERSION_CODE: '24'
-          PES17_BUILD_SHA: kox-mali-loadscale
+          PES17_VERSION_CODE: '25'
+          PES17_BUILD_SHA: kox-frame120-renderfix
           PES17_BUILD_STAMP: ${{ github.run_number }}
           PES17_NDK_VERSION: 28.2.13676358
           PES17_NATIVE_OPTIMISATION: -O2
