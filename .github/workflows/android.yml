@@ -88,6 +88,10 @@ jobs:
           test -s build-android/libpes17.so
           mkdir -p prebuilt/arm64-v8a
           cp build-android/libpes17.so prebuilt/arm64-v8a/libpes17.so
+          NDK_LIBCXX="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so"
+          test -s "$NDK_LIBCXX" || { echo "NDK libc++_shared.so not found: $NDK_LIBCXX"; exit 1; }
+          cp "$NDK_LIBCXX" prebuilt/arm64-v8a/libc++_shared.so
+          echo "Packaged libc++_shared.so alongside libpes17.so"
 
       - name: Build release APK
         working-directory: upstream/android
