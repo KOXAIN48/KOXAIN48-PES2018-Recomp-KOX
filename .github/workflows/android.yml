@@ -64,6 +64,7 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path("android/app/src/main/java/com/pes2017/recomp/DeviceProfile.kt")
           s = p.read_text()
           old = "Tier.MEDIUM -> Preset(75, multisampling = true, fsr = true, fpsLimit = 60, lowMemory = false, heatScale = true, loadScale = false)"
@@ -71,7 +72,6 @@ jobs:
           if s.count(old) != 1:
               raise SystemExit("Patch guard failed: expected exactly one Medium preset line")
           p.write_text(s.replace(old, new))
-          PY
 
           # Extend Frame Limit from 30-60 to 30-120 FPS in 5 FPS steps.
           prefs = Path("android/app/src/main/java/com/pes2017/recomp/Prefs.kt")
@@ -106,10 +106,6 @@ jobs:
               raise SystemExit("Native FPS pacing support verification failed")
 
           # Extend the texture-memory slider to 12 GB (96 x 128 MB).
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-
           root = Path(".")
           settings = root / "android/app/src/main/java/com/pes2017/recomp/SettingsActivity.kt"
           s = settings.read_text()
