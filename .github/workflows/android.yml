@@ -495,6 +495,11 @@ jobs:
               "Quick Graphics text contrast": "setTextColor(Color.rgb(10, 27, 69))" in (root / "android/app/src/main/java/com/pes2017/recomp/QuickGraphics.kt").read_text(),
               "Quick Graphics 120 FPS range": "max = 18" in (root / "android/app/src/main/java/com/pes2017/recomp/QuickGraphics.kt").read_text(),
               "Internal and match render controls": "Internal render multiplier" in (root / "android/app/src/main/res/values/strings.xml").read_text() and "Match render quality" in (root / "android/app/src/main/res/values/strings.xml").read_text(),
+              "Display resolution preferences": "var displayResolutionWidth: Int" in prefs.read_text() and "var displayResolutionHeight: Int" in prefs.read_text(),
+              "Display resolution presets and custom fields": "7680 to 4320" in settings.read_text() and "Custom width" in settings.read_text() and "Custom height" in settings.read_text(),
+              "Surface uses selected dimensions": "prefs.displayResolutionWidth" in game.read_text() and "prefs.displayResolutionHeight" in game.read_text(),
+              "Aspect ratio fit": "availableRatio > ratio" in game.read_text(),
+              "Quick Graphics dialog title and buttons contrast": "androidx.appcompat.R.id.alertTitle" in (root / "android/app/src/main/java/com/pes2017/recomp/QuickGraphics.kt").read_text(),
           }
           for name, ok in checks.items():
               print(f"{name}: {'OK' if ok else 'MISSING'}")
@@ -523,8 +528,8 @@ jobs:
         working-directory: upstream/android
         env:
           PES17_VERSION_NAME: 0.3.2-kox
-          PES17_VERSION_CODE: '26'
-          PES17_BUILD_SHA: kox-ui-render-labels-fix
+          PES17_VERSION_CODE: '27'
+          PES17_BUILD_SHA: kox-display-resolution-white-dialog-fix
           PES17_BUILD_STAMP: ${{ github.run_number }}
           PES17_NDK_VERSION: 28.2.13676358
           PES17_NATIVE_OPTIMISATION: -O2
