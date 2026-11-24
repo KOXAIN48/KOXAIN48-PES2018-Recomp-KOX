@@ -91,8 +91,8 @@ jobs:
           prefs = root / "android/app/src/main/java/com/pes2017/recomp/Prefs.kt"
           s = prefs.read_text()
           old = '''    var prefer60Hz: Boolean
-        get() = store.getBoolean(KEY_60HZ, true)
-        set(value) = store.edit().putBoolean(KEY_60HZ, value).apply()'''
+                  get() = store.getBoolean(KEY_60HZ, true)
+                  set(value) = store.edit().putBoolean(KEY_60HZ, value).apply()'''
           new = '''    var displayRefreshRate: Int
           get() = store.getInt("displayRefreshRate", 60).coerceIn(30, 120)
           set(value) = store.edit().putInt("displayRefreshRate", value.coerceIn(30, 120)).apply()
