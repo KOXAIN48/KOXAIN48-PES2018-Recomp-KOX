@@ -307,7 +307,6 @@ jobs:
 
           settings = root / "android/app/src/main/java/com/pes2017/recomp/SettingsActivity.kt"
           ss = settings.read_text()
-          old = '''        bar(R.id.resolution, R.id.resolution_label, 65, ((prefs.resolutionScale * 100f) - 35f).roundToInt(),
           pattern = r'(?m)^\s*bar\(R\.id\.resolution, R\.id\.resolution_label, 65, \(\(prefs\.resolutionScale \* 100f\) - 35f\)\.roundToInt\(\),\s*\{ getString\(R\.string\.resolution, it \+ 35\) \}\) \{ prefs\.resolutionScale = \(it \+ 35\) / 100f \}'
           ss, replaced = re.subn(pattern, "        setupDisplayResolutionControl()", ss)
           if replaced != 1: raise SystemExit(f"Display resolution settings anchor mismatch: {replaced}")
