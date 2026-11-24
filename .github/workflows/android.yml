@@ -72,3 +72,5 @@ jobs:
           path: upstream/android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 14
+
+# KOX build workflow revision: trigger CI after initial repository setup.
