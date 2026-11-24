@@ -87,52 +87,57 @@ jobs:
               raise SystemExit(f"Texture slider patch guard failed: max={n1}, clamp={n2}")
           settings.write_text(s)
 
-          # Keep the existing preference key so users retain their previous setting.
+          # Store a selectable display refresh rate.
           prefs = root / "android/app/src/main/java/com/pes2017/recomp/Prefs.kt"
           s = prefs.read_text()
           old = '''    var prefer60Hz: Boolean
         get() = store.getBoolean(KEY_60HZ, true)
         set(value) = store.edit().putBoolean(KEY_60HZ, value).apply()'''
           new = '''    var displayRefreshRate: Int
-          get() = store.getInt("displayRefreshRate", 60).coerceIn(30, 120)
-          set(value) = store.edit().putInt("displayRefreshRate", value.coerceIn(30, 120)).apply()
-
-          var prefer60Hz: Boolean
-              get() = displayRefreshRate == 60
-              set(value) { if (value) displayRefreshRate = 60 }'''
+        get() = store.getInt(KEY_DISPLAY_REFRESH_RATE, 60).let { if (it in intArrayOf(30, 60, 90, 120)) it else 60 }
+        set(value) = store.edit().putInt(KEY_DISPLAY_REFRESH_RATE, value.coerceIn(30, 120)).apply()'''
           if s.count(old) != 1:
               raise SystemExit("Display preference patch guard failed in Prefs.kt")
-          prefs.write_text(s.replace(old, new))
+          s = s.replace(old, new)
+          old_key = '        private const val KEY_60HZ = "prefer60Hz"'
+          new_key = '        private const val KEY_DISPLAY_REFRESH_RATE = "displayRefreshRate"'
+          if s.count(old_key) != 1:
+              raise SystemExit("Display preference key patch guard failed in Prefs.kt")
+          prefs.write_text(s.replace(old_key, new_key))
 
-          # Replace the old 60-Hz toggle with a four-choice selector.
+          # Replace the legacy toggle and hint with a 30/60/90/120-Hz selector.
           settings = root / "android/app/src/main/java/com/pes2017/recomp/SettingsActivity.kt"
           s = settings.read_text()
           old = '        switch(R.id.prefer60, prefs.prefer60Hz) { prefs.prefer60Hz = it }'
           new = '''        run {
               val oldSwitch = findViewById<SwitchCompat>(R.id.prefer60)
-              val parent = oldSwitch.parent as android.view.ViewGroup
-              val index = parent.indexOfChild(oldSwitch)
+              val group = oldSwitch.parent as android.view.ViewGroup
+              val index = group.indexOfChild(oldSwitch)
               oldSwitch.visibility = android.view.View.GONE
+              if (index + 1 < group.childCount) group.getChildAt(index + 1).visibility = android.view.View.GONE
               val label = TextView(this).apply {
                   text = "Lock Display Refresh Rate"
                   setPadding(0, 8, 0, 4)
               }
-              parent.addView(label, index + 1, android.view.ViewGroup.LayoutParams(
+              val spinner = android.widget.Spinner(this)
+              val labels = listOf("30 Hz", "60 Hz", "90 Hz", "120 Hz")
+              val rates = intArrayOf(30, 60, 90, 120)
+              spinner.adapter = android.widget.ArrayAdapter(
+                  this, android.R.layout.simple_spinner_item, labels
+              ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+              group.addView(label, index, android.view.ViewGroup.LayoutParams(
                   android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                   android.view.ViewGroup.LayoutParams.WRAP_CONTENT
               ))
-              val choices = listOf("30 Hz", "60 Hz", "90 Hz", "120 Hz")
-              val values = intArrayOf(30, 60, 90, 120)
-              val spinner = android.widget.Spinner(this)
-              spinner.adapter = android.widget.ArrayAdapter(
-                  this, android.R.layout.simple_spinner_dropdown_item, choices
-              ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
-              parent.addView(spinner, index + 2, oldSwitch.layoutParams)
-              spinner.setSelection(values.indexOf(prefs.displayRefreshRate).coerceAtLeast(0), false)
+              group.addView(spinner, index + 1, android.view.ViewGroup.LayoutParams(
+                  android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                  android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+              ))
+              spinner.setSelection(rates.indexOf(prefs.displayRefreshRate).coerceAtLeast(0), false)
               spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-                  override fun onNothingSelected(parentView: android.widget.AdapterView<*>?) {}
-                  override fun onItemSelected(parentView: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
-                      prefs.displayRefreshRate = values[position]
+                  override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
+                  override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                      prefs.displayRefreshRate = rates[position]
                   }
               }
           }'''
@@ -154,10 +159,12 @@ jobs:
                       @Suppress("DEPRECATION")
                       windowManager.defaultDisplay
                   }
-                  val supported = displayObj?.supportedModes?.minByOrNull {
-                      kotlin.math.abs(it.refreshRate - targetHz.toFloat())
+                  val modes = displayObj?.supportedModes ?: emptyArray()
+                  val supported = modes.minByOrNull { kotlin.math.abs(it.refreshRate - targetHz.toFloat()) }
+                  if (supported != null) {
+                      attributes.preferredRefreshRate = supported.refreshRate
+                      attributes.preferredDisplayModeId = supported.modeId
                   }
-                  if (supported != null) attributes.preferredDisplayModeId = supported.modeId
               }
               window.attributes = attributes
           }'''
