@@ -408,43 +408,42 @@ jobs:
 
           game = root / "android/app/src/main/java/com/pes2017/recomp/GameActivity.kt"
           gs = game.read_text()
-          old_surface = '''                val scale = prefs.resolutionScale
-                val wantedWidth = max(320, (surfaceView.width * scale).roundToInt())
-                val wantedHeight = max(240, (surfaceView.height * scale).roundToInt())'''
-          new_surface = '''                val wantedWidth = prefs.displayResolutionWidth
-                val wantedHeight = prefs.displayResolutionHeight'''
-          if gs.count(old_surface) != 1: raise SystemExit("Display surface buffer anchor mismatch")
-          gs = gs.replace(old_surface, new_surface)
-          old_end = '''        setContentView(root)
-              }
-
-              private fun smallButton'''
-          new_end = '''        setContentView(root)
+          # Patch the actual SurfaceHolder callback by matching its declarations,
+          # independent of whitespace so upstream formatting changes do not break the build.
+          surface_pattern = r'(?m)^\s*val scale = prefs\.resolutionScale\n\s*val wantedWidth = max\(320, \(surfaceView\.width \* scale\)\.roundToInt\(\)\)\n\s*val wantedHeight = max\(240, \(surfaceView\.height \* scale\)\.roundToInt\(\)\)'
+          new_surface = """                val wantedWidth = prefs.displayResolutionWidth
+                val wantedHeight = prefs.displayResolutionHeight"""
+          gs, surface_count = re.subn(surface_pattern, lambda _: new_surface, gs)
+          if surface_count != 1:
+              raise SystemExit(f"Display surface buffer patch mismatch: {surface_count}")
+          old_end_pattern = r'(?m)^        setContentView\(root\)\n    }\n\n    private fun smallButton'
+          new_end = """        setContentView(root)
                   // Fit the selected aspect ratio; touch controls remain full-screen.
                   root.post {
-            val aw = root.width.coerceAtLeast(1)
-            val ah = root.height.coerceAtLeast(1)
-            val tw = prefs.displayResolutionWidth
-            val th = prefs.displayResolutionHeight
-            val ratio = tw.toDouble() / th.toDouble()
-            val availableRatio = aw.toDouble() / ah.toDouble()
-            val fw: Int
-            val fh: Int
-            if (availableRatio > ratio) {
-                fh = ah
-                fw = (ah * ratio).roundToInt().coerceAtLeast(1)
-            } else {
-                fw = aw
-                fh = (aw / ratio).roundToInt().coerceAtLeast(1)
-            }
-            surfaceView.layoutParams = FrameLayout.LayoutParams(fw, fh, Gravity.CENTER)
-            surfaceView.holder.setFixedSize(tw, th)
+                      val aw = root.width.coerceAtLeast(1)
+                      val ah = root.height.coerceAtLeast(1)
+                      val tw = prefs.displayResolutionWidth
+                      val th = prefs.displayResolutionHeight
+                      val ratio = tw.toDouble() / th.toDouble()
+                      val availableRatio = aw.toDouble() / ah.toDouble()
+                      val fw: Int
+                      val fh: Int
+                      if (availableRatio > ratio) {
+                          fh = ah
+                          fw = (ah * ratio).roundToInt().coerceAtLeast(1)
+                      } else {
+                          fw = aw
+                          fh = (aw / ratio).roundToInt().coerceAtLeast(1)
+                      }
+                      surfaceView.layoutParams = FrameLayout.LayoutParams(fw, fh, Gravity.CENTER)
+                      surfaceView.holder.setFixedSize(tw, th)
                   }
               }
 
-              private fun smallButton'''
-          if gs.count(old_end) != 1: raise SystemExit("Display viewport fitting anchor mismatch")
-          gs = gs.replace(old_end, new_end)
+              private fun smallButton"""
+          gs, end_count = re.subn(old_end_pattern, lambda _: new_end, gs)
+          if end_count != 1:
+              raise SystemExit(f"Display viewport fitting patch mismatch: {end_count}")
           game.write_text(gs)
 
           # Explicit contrast for all text and action buttons in the in-game quick graphics dialog.
