@@ -234,6 +234,51 @@ jobs:
               raise SystemExit("Legacy prefer60Hz reference remains in CaptureSession.kt")
           capture.write_text(s)
 
+          # Fix the in-game Graphics & Performance dialog contrast and expose
+          # the existing internal-render / match-render controls with clear names.
+          quick = root / "android/app/src/main/java/com/pes2017/recomp/QuickGraphics.kt"
+          qs = quick.read_text()
+          old_import = "import android.app.Activity"
+          if qs.count(old_import) != 1:
+              raise SystemExit("QuickGraphics color import patch guard failed")
+          qs = qs.replace(old_import, old_import + "\\nimport android.graphics.Color")
+          old_label = 'fun label(text: String) = TextView(activity).apply { this.text = text; textSize = 13f; setPadding(0, px(10), 0, 0) }'
+          new_label = 'fun label(text: String) = TextView(activity).apply { this.text = text; textSize = 13f; setTextColor(Color.rgb(10, 27, 69)); setPadding(0, px(10), 0, 0) }'
+          if qs.count(old_label) != 1:
+              raise SystemExit("QuickGraphics label contrast patch guard failed")
+          qs = qs.replace(old_label, new_label)
+          old_radio = 'RadioButton(activity).apply { text = tier.name.lowercase().replaceFirstChar { it.uppercase() }; id = View.generateViewId() }'
+          new_radio = 'RadioButton(activity).apply { text = tier.name.lowercase().replaceFirstChar { it.uppercase() }; setTextColor(Color.rgb(10, 27, 69)); id = View.generateViewId() }'
+          if qs.count(old_radio) != 1:
+              raise SystemExit("QuickGraphics preset contrast patch guard failed")
+          qs = qs.replace(old_radio, new_radio)
+          old_switch = 'fun switch(text: String) = SwitchCompat(activity).apply { this.text = text; setPadding(0, px(6), 0, px(6)) }'
+          new_switch = 'fun switch(text: String) = SwitchCompat(activity).apply { this.text = text; setTextColor(Color.rgb(10, 27, 69)); setPadding(0, px(6), 0, px(6)) }'
+          if qs.count(old_switch) != 1:
+              raise SystemExit("QuickGraphics toggle contrast patch guard failed")
+          qs = qs.replace(old_switch, new_switch)
+          qs = qs.replace('val fps = SeekBar(activity).apply { max = 6 }', 'val fps = SeekBar(activity).apply { max = 18 }')
+          qs = qs.replace('fps.progress = (v.fps - 30) / 5', 'fps.progress = ((v.fps - 30) / 5).coerceIn(0, 18)')
+          qs = qs.replace('v.fps = 30 + value * 5; fpsText.text', 'v.fps = 30 + value * 5; fpsText.text')
+          old_note = 'setText(R.string.qg_note); textSize = 11f; alpha = 0.7f; setPadding(0, px(10), 0, 0)'
+          new_note = 'setText(R.string.qg_note); textSize = 11f; setTextColor(Color.rgb(93, 107, 134)); alpha = 1f; setPadding(0, px(10), 0, 0)'
+          if qs.count(old_note) != 1:
+              raise SystemExit("QuickGraphics note contrast patch guard failed")
+          qs = qs.replace(old_note, new_note)
+          if 'max = 18' not in qs or 'setTextColor(Color.rgb(10, 27, 69))' not in qs:
+              raise SystemExit("QuickGraphics visibility / FPS verification failed")
+          quick.write_text(qs)
+
+          strings = root / "android/app/src/main/res/values/strings.xml"
+          rs = strings.read_text()
+          old_scene = '<string name="qg_scene">Scene resolution: %1$d%%</string>'
+          new_scene = '<string name="qg_scene">Match render quality: %1$d%%</string>'
+          old_scale = '<string name="qg_scale">Internal resolution: %1$dx (1x = 1280x720; 2x or 3x for powerful GPUs)</string>'
+          new_scale = '<string name="qg_scale">Internal render multiplier: %1$dx (1x = 1280x720; 2x or 3x for powerful GPUs)</string>'
+          if rs.count(old_scene) != 1 or rs.count(old_scale) != 1:
+              raise SystemExit("Graphics render labels patch guard failed")
+          strings.write_text(rs.replace(old_scene, new_scene).replace(old_scale, new_scale))
+
           # Verify all KOX patches are present before compiling.
           checks = {
               "Dynamic scaling disabled for render-bug isolation": "heatScale = false, loadScale = false" in (root / "android/app/src/main/java/com/pes2017/recomp/DeviceProfile.kt").read_text(),
@@ -273,8 +318,8 @@ jobs:
         working-directory: upstream/android
         env:
           PES17_VERSION_NAME: 0.3.2-kox
-          PES17_VERSION_CODE: '25'
-          PES17_BUILD_SHA: kox-frame120-renderfix
+          PES17_VERSION_CODE: '26'
+          PES17_BUILD_SHA: kox-ui-render-labels-fix
           PES17_BUILD_STAMP: ${{ github.run_number }}
           PES17_NDK_VERSION: 28.2.13676358
           PES17_NATIVE_OPTIMISATION: -O2
