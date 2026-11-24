@@ -90,20 +90,19 @@ jobs:
           # Store a selectable display refresh rate.
           prefs = root / "android/app/src/main/java/com/pes2017/recomp/Prefs.kt"
           s = prefs.read_text()
-          old = '''    var prefer60Hz: Boolean
-        get() = store.getBoolean(KEY_60HZ, true)
-        set(value) = store.edit().putBoolean(KEY_60HZ, value).apply()'''
-          new = '''    var displayRefreshRate: Int
-        get() = store.getInt(KEY_DISPLAY_REFRESH_RATE, 60).let { if (it in intArrayOf(30, 60, 90, 120)) it else 60 }
-        set(value) = store.edit().putInt(KEY_DISPLAY_REFRESH_RATE, value.coerceIn(30, 120)).apply()'''
-          if s.count(old) != 1:
-              raise SystemExit("Display preference patch guard failed in Prefs.kt")
-          s = s.replace(old, new)
-          old_key = '        private const val KEY_60HZ = "prefer60Hz"'
-          new_key = '        private const val KEY_DISPLAY_REFRESH_RATE = "displayRefreshRate"'
-          if s.count(old_key) != 1:
-              raise SystemExit("Display preference key patch guard failed in Prefs.kt")
-          prefs.write_text(s.replace(old_key, new_key))
+          import re
+          pattern = re.compile(r'    var prefer60Hz: Boolean\\n        get\\(\\) = store\\.getBoolean\\(KEY_60HZ, true\\)\\n        set\\(value\\) = store\\.edit\\(\\)\\.putBoolean\\(KEY_60HZ, value\\)\\.apply\\(\\)')
+          replacement = '''    var displayRefreshRate: Int
+                  get() = store.getInt(KEY_DISPLAY_REFRESH_RATE, 60).let { if (it in intArrayOf(30, 60, 90, 120)) it else 60 }
+                  set(value) = store.edit().putInt(KEY_DISPLAY_REFRESH_RATE, value.takeIf { it in intArrayOf(30, 60, 90, 120) } ?: 60).apply()'''
+          s, count = pattern.subn(replacement, s, count=1)
+          if count != 1:
+              raise SystemExit("Display preference property not found exactly once in Prefs.kt")
+          key_pattern = re.compile(r'        private const val KEY_60HZ = "prefer60Hz"')
+          s, key_count = key_pattern.subn('        private const val KEY_DISPLAY_REFRESH_RATE = "displayRefreshRate"', s, count=1)
+          if key_count != 1:
+              raise SystemExit("Display preference key not found exactly once in Prefs.kt")
+          prefs.write_text(s)
 
           # Replace the legacy toggle and hint with a 30/60/90/120-Hz selector.
           settings = root / "android/app/src/main/java/com/pes2017/recomp/SettingsActivity.kt"
