@@ -92,11 +92,17 @@ jobs:
 
           game = Path("android/app/src/main/java/com/pes2017/recomp/GameActivity.kt")
           gs = game.read_text()
-          old_limit = '''            prefs.frameGeneration -> "30"
-              prefs.fpsLimit < 60 -> prefs.fpsLimit.toString()
-              else -> ""'''
-          new_limit = '''            prefs.frameGeneration -> "30"
-              else -> prefs.fpsLimit.toString()'''
+          old_limit = '''        val fpsLimit = when {
+                      prefs.frameGeneration -> "30"
+                      prefs.fpsLimit < 60 -> prefs.fpsLimit.toString()
+                      else -> ""
+                  }
+                  NativeBridge.nativeSetOption("PES17_FPS_LIMIT", fpsOverride?.takeIf { it.isNotEmpty() } ?: fpsLimit)'''
+          new_limit = '''        val fpsLimit = when {
+                      prefs.frameGeneration -> "30"
+                      else -> prefs.fpsLimit.toString()
+                  }
+                  NativeBridge.nativeSetOption("PES17_FPS_LIMIT", fpsOverride?.takeIf { it.isNotEmpty() } ?: fpsLimit)'''
           if gs.count(old_limit) != 1:
               raise SystemExit("Frame Limit native dispatch patch guard failed")
           game.write_text(gs.replace(old_limit, new_limit))
