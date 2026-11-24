@@ -90,21 +90,22 @@ jobs:
           # Store a selectable display refresh rate.
           prefs = root / "android/app/src/main/java/com/pes2017/recomp/Prefs.kt"
           s = prefs.read_text()
-          import re
-          pattern = re.compile(r'    var prefer60Hz: Boolean\n        get\(\) = store\.getBoolean\(KEY_60HZ, true\)\n        set\(value\) = store\.edit\(\)\.putBoolean\(KEY_60HZ, value\)\.apply\(\)')
-          replacement = '''    var displayRefreshRate: Int
-        get() = store.getInt(KEY_DISPLAY_REFRESH_RATE, 60).let { if (it in intArrayOf(30, 60, 90, 120)) it else 60 }
-        set(value) = store.edit().putInt(KEY_DISPLAY_REFRESH_RATE, value.takeIf { it in intArrayOf(30, 60, 90, 120) } ?: 60).apply()'''
-          s, count = pattern.subn(replacement, s, count=1)
-          if count != 1:
-              raise SystemExit("Display preference property not found exactly once in Prefs.kt")
-          key_pattern = re.compile(r'        private const val KEY_60HZ = "prefer60Hz"')
-          s, key_count = key_pattern.subn('        private const val KEY_DISPLAY_REFRESH_RATE = "displayRefreshRate"', s, count=1)
-          if key_count != 1:
-              raise SystemExit("Display preference key not found exactly once in Prefs.kt")
-          prefs.write_text(s)
+          old_property = """    var prefer60Hz: Boolean
+                  get() = store.getBoolean(KEY_60HZ, true)
+                  set(value) = store.edit().putBoolean(KEY_60HZ, value).apply()"""
+          new_property = """    var displayRefreshRate: Int
+                  get() = store.getInt(KEY_DISPLAY_REFRESH_RATE, 60).let { if (it in intArrayOf(30, 60, 90, 120)) it else 60 }
+                  set(value) = store.edit().putInt(KEY_DISPLAY_REFRESH_RATE, value.takeIf { it in intArrayOf(30, 60, 90, 120) } ?: 60).apply()"""
+          if s.count(old_property) != 1:
+              raise SystemExit("Display preference property patch guard failed")
+          s = s.replace(old_property, new_property)
+          old_key = '        private const val KEY_60HZ = "prefer60Hz"'
+          new_key = '        private const val KEY_DISPLAY_REFRESH_RATE = "displayRefreshRate"'
+          if s.count(old_key) != 1:
+              raise SystemExit("Display preference key patch guard failed")
+          prefs.write_text(s.replace(old_key, new_key))
 
-          # Replace the legacy toggle and hint with a 30/60/90/120-Hz selector.
+          # Replace the legacy toggle with a 30/60/90/120-Hz selector.
           settings = root / "android/app/src/main/java/com/pes2017/recomp/SettingsActivity.kt"
           s = settings.read_text()
           old = '        switch(R.id.prefer60, prefs.prefer60Hz) { prefs.prefer60Hz = it }'
@@ -144,33 +145,62 @@ jobs:
               raise SystemExit("Display selector patch guard failed in SettingsActivity.kt")
           settings.write_text(s.replace(old, new))
 
-          # Apply the selected refresh rate, falling back to the closest supported panel mode.
+          # Apply the selected refresh rate, using the closest supported panel mode.
           game = root / "android/app/src/main/java/com/pes2017/recomp/GameActivity.kt"
           s = game.read_text()
-          pattern = re.compile(r'        // Frame generation pairs a 30 fps game with a 60 Hz screen.*?            window\.attributes = attributes\n        }', re.S)
-          replacement = '''        // Use the selected display mode; frame generation specifically requires 60 Hz.
-          run {
-              val targetHz = if (prefs.frameGeneration) 60 else prefs.displayRefreshRate
-              val attributes = window.attributes
-              attributes.preferredRefreshRate = targetHz.toFloat()
-              if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                  val displayObj = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display else {
-                      @Suppress("DEPRECATION")
-                      windowManager.defaultDisplay
-                  }
-                  val modes = displayObj?.supportedModes ?: emptyArray()
-                  val supported = modes.minByOrNull { kotlin.math.abs(it.refreshRate - targetHz.toFloat()) }
-                  if (supported != null) {
-                      attributes.preferredRefreshRate = supported.refreshRate
-                      attributes.preferredDisplayModeId = supported.modeId
-                  }
-              }
-              window.attributes = attributes
-          }'''
+          pattern = re.compile(r"""        // Frame generation pairs a 30 fps game with a 60 Hz screen \(PES17_FRAMEGEN\)\.
+                  if \(prefs\.prefer60Hz \|\| prefs\.frameGeneration\) \{
+                      val attributes = window\.attributes
+                      attributes\.preferredRefreshRate = 60f
+                      if \(Build\.VERSION\.SDK_INT >= Build\.VERSION_CODES\.M\) \{
+                          val displayObj = if \(Build\.VERSION\.SDK_INT >= Build\.VERSION_CODES\.R\) display
+                          else \{
+                              @Suppress\("DEPRECATION"\)
+                              windowManager\.defaultDisplay
+                          \}
+                          if \(displayObj != null\) \{
+                              val mode60 = displayObj\.supportedModes\.firstOrNull \{ kotlin\.math\.abs\(it\.refreshRate - 60f\) < 1f \}
+                              if \(mode60 != null\) \{
+                                  attributes\.preferredDisplayModeId = mode60\.modeId
+                              \}
+                          \}
+                      \}
+                      window\.attributes = attributes
+                  \}""")
+          replacement = '''        // Frame generation requires 60 Hz; otherwise use the user's selected panel rate.
+                  run {
+                      val targetHz = if (prefs.frameGeneration) 60 else prefs.displayRefreshRate
+                      val attributes = window.attributes
+                      attributes.preferredRefreshRate = targetHz.toFloat()
+                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                          val displayObj = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display else {
+                              @Suppress("DEPRECATION")
+                              windowManager.defaultDisplay
+                          }
+                          val mode = displayObj?.supportedModes?.minByOrNull {
+                              kotlin.math.abs(it.refreshRate - targetHz.toFloat())
+                          }
+                          if (mode != null) attributes.preferredDisplayModeId = mode.modeId
+                      }
+                      window.attributes = attributes
+                  }'''
           s, count = pattern.subn(replacement, s, count=1)
           if count != 1:
               raise SystemExit("Refresh-rate runtime patch guard failed in GameActivity.kt")
           game.write_text(s)
+
+          # Verify all KOX patches are present before compiling.
+          checks = {
+              "Mali load scaling": "loadScale = true" in (root / "android/app/src/main/java/com/pes2017/recomp/DeviceProfile.kt").read_text(),
+              "12 GB texture range": "R.id.texture_label, 96," in settings.read_text() and ".coerceIn(1, 96)" in settings.read_text(),
+              "refresh rate preference": "var displayRefreshRate: Int" in prefs.read_text(),
+              "refresh rate selector": "Lock Display Refresh Rate" in settings.read_text(),
+              "runtime refresh rate": "prefs.displayRefreshRate" in game.read_text(),
+          }
+          for name, ok in checks.items():
+              print(f"{name}: {'OK' if ok else 'MISSING'}")
+          if not all(checks.values()):
+              raise SystemExit("KOX patch verification failed")
           PY
       - name: Recompile PES2018 XEX and build native ARM64 library
         working-directory: upstream
