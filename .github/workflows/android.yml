@@ -2,8 +2,6 @@ name: KOX PES2018 Android APK
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
 
 permissions:
   contents: read
@@ -75,20 +73,90 @@ jobs:
           p.write_text(s.replace(old, new))
           PY
 
-          # Extend the texture-memory slider from 1,920 MB to 12,288 MB (12 GB).
+          # Extend the texture-memory slider to 12 GB (96 x 128 MB).
           python3 - <<'PY'
           from pathlib import Path
-          p = Path("android/app/src/main/java/com/pes2017/recomp/SettingsActivity.kt")
-          s = p.read_text()
-          old = '''        // 0 means "let the runtime decide"; then 128 MB steps to 2 GB.
-          bar(R.id.texture_budget, R.id.texture_label, 15,
-              if (prefs.textureBudgetMB <= 0) 0 else (prefs.textureBudgetMB / 128).coerceIn(1, 15),'''
-          new = '''        // 0 means automatic; then 128 MB steps up to 12 GB.
-          bar(R.id.texture_budget, R.id.texture_label, 96,
-              if (prefs.textureBudgetMB <= 0) 0 else (prefs.textureBudgetMB / 128).coerceIn(1, 96),'''
+          import re
+
+          root = Path(".")
+          settings = root / "android/app/src/main/java/com/pes2017/recomp/SettingsActivity.kt"
+          s = settings.read_text()
+          s, n1 = re.subn(r'bar\\(R\\.id\\.texture_budget, R\\.id\\.texture_label, 15,', 'bar(R.id.texture_budget, R.id.texture_label, 96,', s)
+          s, n2 = re.subn(r'\\.coerceIn\\(1, 15\\)', '.coerceIn(1, 96)', s)
+          if n1 != 1 or n2 != 1:
+              raise SystemExit(f"Texture slider patch guard failed: max={n1}, clamp={n2}")
+          settings.write_text(s)
+
+          # Keep the existing preference key so users retain their previous setting.
+          prefs = root / "android/app/src/main/java/com/pes2017/recomp/Prefs.kt"
+          s = prefs.read_text()
+          old = '''    var prefer60Hz: Boolean
+          get() = store.getBoolean(KEY_60HZ, true)
+          set(value) = store.edit().putBoolean(KEY_60HZ, value).apply()'''
+          new = '''    var displayRefreshRate: Int
+          get() = store.getInt(KEY_60HZ, 60).coerceIn(30, 120)
+          set(value) = store.edit().putInt(KEY_60HZ, value.coerceIn(30, 120)).apply()
+
+          var prefer60Hz: Boolean
+              get() = displayRefreshRate == 60
+              set(value) { if (value) displayRefreshRate = 60 }'''
           if s.count(old) != 1:
-              raise SystemExit("Texture slider patch guard failed; upstream settings changed")
-          p.write_text(s.replace(old, new))
+              raise SystemExit("Display preference patch guard failed in Prefs.kt")
+          prefs.write_text(s.replace(old, new))
+
+          # Replace the old 60-Hz toggle with a four-choice selector.
+          settings = root / "android/app/src/main/java/com/pes2017/recomp/SettingsActivity.kt"
+          s = settings.read_text()
+          old = '        switch(R.id.prefer60, prefs.prefer60Hz) { prefs.prefer60Hz = it }'
+          new = '''        run {
+              val oldSwitch = findViewById<SwitchCompat>(R.id.prefer60)
+              val parent = oldSwitch.parent as android.view.ViewGroup
+              val index = parent.indexOfChild(oldSwitch)
+              oldSwitch.visibility = android.view.View.GONE
+              val choices = listOf("30 Hz", "60 Hz", "90 Hz", "120 Hz")
+              val values = intArrayOf(30, 60, 90, 120)
+              val spinner = android.widget.Spinner(this)
+              spinner.adapter = android.widget.ArrayAdapter(
+                  this, android.R.layout.simple_spinner_dropdown_item, choices
+              ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+              parent.addView(spinner, index + 1, oldSwitch.layoutParams)
+              spinner.setSelection(values.indexOf(prefs.displayRefreshRate).coerceAtLeast(0), false)
+              spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                  override fun onNothingSelected(parentView: android.widget.AdapterView<*>?) {}
+                  override fun onItemSelected(parentView: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                      prefs.displayRefreshRate = values[position]
+                  }
+              }
+          }'''
+          if s.count(old) != 1:
+              raise SystemExit("Display selector patch guard failed in SettingsActivity.kt")
+          settings.write_text(s.replace(old, new))
+
+          # Apply the selected refresh rate, falling back to the closest supported panel mode.
+          game = root / "android/app/src/main/java/com/pes2017/recomp/GameActivity.kt"
+          s = game.read_text()
+          pattern = re.compile(r'        // Frame generation pairs a 30 fps game with a 60 Hz screen.*?            window\\.attributes = attributes\\n        }', re.S)
+          replacement = '''        // Use the selected display mode; frame generation specifically requires 60 Hz.
+          run {
+              val targetHz = if (prefs.frameGeneration) 60 else prefs.displayRefreshRate
+              val attributes = window.attributes
+              attributes.preferredRefreshRate = targetHz.toFloat()
+              if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                  val displayObj = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display else {
+                      @Suppress("DEPRECATION")
+                      windowManager.defaultDisplay
+                  }
+                  val supported = displayObj?.supportedModes?.minByOrNull {
+                      kotlin.math.abs(it.refreshRate - targetHz.toFloat())
+                  }
+                  if (supported != null) attributes.preferredDisplayModeId = supported.modeId
+              }
+              window.attributes = attributes
+          }'''
+          s, count = pattern.subn(replacement, s, count=1)
+          if count != 1:
+              raise SystemExit("Refresh-rate runtime patch guard failed in GameActivity.kt")
+          game.write_text(s)
           PY
       - name: Recompile PES2018 XEX and build native ARM64 library
         working-directory: upstream
