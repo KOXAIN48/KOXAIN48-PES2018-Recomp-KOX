@@ -148,26 +148,26 @@ jobs:
           # Apply the selected refresh rate, using the closest supported panel mode.
           game = root / "android/app/src/main/java/com/pes2017/recomp/GameActivity.kt"
           s = game.read_text()
-          pattern = re.compile(r"""        // Frame generation pairs a 30 fps game with a 60 Hz screen \(PES17_FRAMEGEN\)\.
-                  if \(prefs\.prefer60Hz \|\| prefs\.frameGeneration\) \{
-                      val attributes = window\.attributes
-                      attributes\.preferredRefreshRate = 60f
-                      if \(Build\.VERSION\.SDK_INT >= Build\.VERSION_CODES\.M\) \{
-                          val displayObj = if \(Build\.VERSION\.SDK_INT >= Build\.VERSION_CODES\.R\) display
-                          else \{
-                              @Suppress\("DEPRECATION"\)
-                              windowManager\.defaultDisplay
-                          \}
-                          if \(displayObj != null\) \{
-                              val mode60 = displayObj\.supportedModes\.firstOrNull \{ kotlin\.math\.abs\(it\.refreshRate - 60f\) < 1f \}
-                              if \(mode60 != null\) \{
-                                  attributes\.preferredDisplayModeId = mode60\.modeId
-                              \}
-                          \}
-                      \}
-                      window\.attributes = attributes
-                  \}""")
-          replacement = '''        // Frame generation requires 60 Hz; otherwise use the user's selected panel rate.
+          old_game = """        // Frame generation pairs a 30 fps game with a 60 Hz screen (PES17_FRAMEGEN).
+                  if (prefs.prefer60Hz || prefs.frameGeneration) {
+                      val attributes = window.attributes
+                      attributes.preferredRefreshRate = 60f
+                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                          val displayObj = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display
+                          else {
+                              @Suppress("DEPRECATION")
+                              windowManager.defaultDisplay
+                          }
+                          if (displayObj != null) {
+                              val mode60 = displayObj.supportedModes.firstOrNull { kotlin.math.abs(it.refreshRate - 60f) < 1f }
+                              if (mode60 != null) {
+                                  attributes.preferredDisplayModeId = mode60.modeId
+                              }
+                          }
+                      }
+                      window.attributes = attributes
+                  }"""
+          new_game = """        // Frame generation requires 60 Hz; otherwise use the user's selected panel rate.
                   run {
                       val targetHz = if (prefs.frameGeneration) 60 else prefs.displayRefreshRate
                       val attributes = window.attributes
@@ -183,11 +183,10 @@ jobs:
                           if (mode != null) attributes.preferredDisplayModeId = mode.modeId
                       }
                       window.attributes = attributes
-                  }'''
-          s, count = pattern.subn(replacement, s, count=1)
-          if count != 1:
-              raise SystemExit("Refresh-rate runtime patch guard failed in GameActivity.kt")
-          game.write_text(s)
+                  }"""
+          if s.count(old_game) != 1:
+              raise SystemExit("Refresh-rate runtime block patch guard failed in GameActivity.kt")
+          game.write_text(s.replace(old_game, new_game))
 
           # Verify all KOX patches are present before compiling.
           checks = {
