@@ -241,7 +241,7 @@ jobs:
           old_import = "import android.app.Activity"
           if qs.count(old_import) != 1:
               raise SystemExit("QuickGraphics color import patch guard failed")
-          qs = qs.replace(old_import, old_import + "\\nimport android.graphics.Color")
+          qs = qs.replace(old_import, old_import + "\nimport android.graphics.Color")
           old_label = 'fun label(text: String) = TextView(activity).apply { this.text = text; textSize = 13f; setPadding(0, px(10), 0, 0) }'
           new_label = 'fun label(text: String) = TextView(activity).apply { this.text = text; textSize = 13f; setTextColor(Color.rgb(10, 27, 69)); setPadding(0, px(10), 0, 0) }'
           if qs.count(old_label) != 1:
@@ -290,6 +290,9 @@ jobs:
               "Frame Limit slider to 120": "R.id.fps_limit_label, 18," in settings.read_text(),
               "Frame Limit preference range": ".coerceIn(30, 120)" in prefs.read_text(),
               "Frame Limit native dispatch": "else -> prefs.fpsLimit.toString()" in game.read_text(),
+              "Quick Graphics text contrast": "setTextColor(Color.rgb(10, 27, 69))" in (root / "android/app/src/main/java/com/pes2017/recomp/QuickGraphics.kt").read_text(),
+              "Quick Graphics 120 FPS range": "max = 18" in (root / "android/app/src/main/java/com/pes2017/recomp/QuickGraphics.kt").read_text(),
+              "Internal and match render controls": "Internal render multiplier" in (root / "android/app/src/main/res/values/strings.xml").read_text() and "Match render quality" in (root / "android/app/src/main/res/values/strings.xml").read_text(),
           }
           for name, ok in checks.items():
               print(f"{name}: {'OK' if ok else 'MISSING'}")
