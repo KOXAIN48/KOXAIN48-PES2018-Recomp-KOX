@@ -204,9 +204,9 @@ jobs:
       - name: Recompile PES2018 XEX and build native ARM64 library
         working-directory: upstream
         env:
-          JOBS: 2
+          JOBS: '2'
           PROFILE: balanced
-          DIAGNOSTICS: OFF
+          DIAGNOSTICS: 'OFF'
         run: |
           chmod +x ./build.sh
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358"
@@ -223,7 +223,7 @@ jobs:
         working-directory: upstream/android
         env:
           PES17_VERSION_NAME: 0.3.2-kox
-          PES17_VERSION_CODE: 24
+          PES17_VERSION_CODE: '24'
           PES17_BUILD_SHA: kox-mali-loadscale
           PES17_BUILD_STAMP: ${{ github.run_number }}
           PES17_NDK_VERSION: 28.2.13676358
