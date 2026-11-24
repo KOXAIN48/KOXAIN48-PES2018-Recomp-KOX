@@ -94,8 +94,8 @@ jobs:
         get() = store.getBoolean(KEY_60HZ, true)
         set(value) = store.edit().putBoolean(KEY_60HZ, value).apply()'''
           new = '''    var displayRefreshRate: Int
-          get() = store.getInt(KEY_60HZ, 60).coerceIn(30, 120)
-          set(value) = store.edit().putInt(KEY_60HZ, value.coerceIn(30, 120)).apply()
+          get() = store.getInt("displayRefreshRate", 60).coerceIn(30, 120)
+          set(value) = store.edit().putInt("displayRefreshRate", value.coerceIn(30, 120)).apply()
 
           var prefer60Hz: Boolean
               get() = displayRefreshRate == 60
