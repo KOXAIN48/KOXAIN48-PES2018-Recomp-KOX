@@ -24,6 +24,42 @@ jobs:
           path: upstream
           persist-credentials: false
 
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Python 3
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Android SDK and NDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install host build tools and Android components
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang cmake ninja-build git
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
+
+      - name: Download private PES2018 XEX release asset
+        env:
+          GH_TOKEN: ${{ secrets.XEX_REPO_TOKEN }}
+        run: |
+          test -n "$GH_TOKEN" || { echo "XEX_REPO_TOKEN secret is missing"; exit 1; }
+          mkdir -p upstream/GAME
+          gh release download pes2018-input \
+            --repo KOXAIN48/PES2018-KOX-PRIVATE \
+            --pattern default.xex \
+            --dir upstream/GAME
+          test -s upstream/GAME/default.xex
+          XEX_SHA256=$(sha256sum upstream/GAME/default.xex | awk '{print $1}')
+          echo "PES17_XEX_SHA256_SP=$XEX_SHA256" >> "$GITHUB_ENV"
+          echo "PES17_XEX_SHA256_MP=$XEX_SHA256" >> "$GITHUB_ENV"
+          echo "Private XEX downloaded and checksum recorded."
+
       - name: Apply KOX Mali GPU load-scaling patch
         working-directory: upstream
         shell: bash
@@ -39,18 +75,19 @@ jobs:
           p.write_text(s.replace(old, new))
           PY
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Set up Android SDK and NDK
-        uses: android-actions/setup-android@v4
-
-      - name: Install required Android components
+      - name: Recompile PES2018 XEX and build native ARM64 library
+        working-directory: upstream
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/28.2.13676358
+          JOBS: 2
+          PROFILE: balanced
+          DIAGNOSTICS: OFF
         run: |
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
+          chmod +x ./build.sh
+          GAME="$PWD/GAME" ./build.sh
+          test -s build-android/libpes17.so
+          mkdir -p prebuilt/arm64-v8a
+          cp build-android/libpes17.so prebuilt/arm64-v8a/libpes17.so
 
       - name: Build release APK
         working-directory: upstream/android
@@ -63,7 +100,9 @@ jobs:
           PES17_NATIVE_OPTIMISATION: -O2
         run: |
           chmod +x ./gradlew
-          ./gradlew --no-daemon --stacktrace :app:assembleRelease
+          ./gradlew --no-daemon --stacktrace \
+            -PprebuiltNative="$GITHUB_WORKSPACE/upstream/prebuilt" \
+            :app:assembleRelease
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -73,4 +112,4 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-# KOX build workflow revision: trigger CI after initial repository setup.
+# KOX build workflow: fetch private XEX, recompile native ARM64 code, then package APK.
