@@ -1,0 +1,74 @@
+name: KOX PES2018 Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - name: Checkout KOX build scripts
+        uses: actions/checkout@v4
+
+      - name: Checkout PES2018 Recomp 0.3.2 source
+        uses: actions/checkout@v4
+        with:
+          repository: sharifhidayatulloh/pes2018-recomp
+          ref: 0.3.2
+          path: upstream
+          persist-credentials: false
+
+      - name: Apply KOX Mali GPU load-scaling patch
+        working-directory: upstream
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("android/app/src/main/java/com/pes2017/recomp/DeviceProfile.kt")
+          s = p.read_text()
+          old = "Tier.MEDIUM -> Preset(75, multisampling = true, fsr = true, fpsLimit = 60, lowMemory = false, heatScale = true, loadScale = false)"
+          new = "Tier.MEDIUM -> Preset(75, multisampling = true, fsr = true, fpsLimit = 60, lowMemory = false, heatScale = true, loadScale = true)"
+          if s.count(old) != 1:
+              raise SystemExit("Patch guard failed: expected exactly one Medium preset line")
+          p.write_text(s.replace(old, new))
+          PY
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK and NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install required Android components
+        run: |
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
+
+      - name: Build release APK
+        working-directory: upstream/android
+        env:
+          PES17_VERSION_NAME: 0.3.2-kox
+          PES17_VERSION_CODE: 24
+          PES17_BUILD_SHA: kox-mali-loadscale
+          PES17_BUILD_STAMP: ${{ github.run_number }}
+          PES17_NDK_VERSION: 28.2.13676358
+          PES17_NATIVE_OPTIMISATION: -O2
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon --stacktrace :app:assembleRelease
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PES2018-Recomp-KOX-0.3.2
+          path: upstream/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 14
