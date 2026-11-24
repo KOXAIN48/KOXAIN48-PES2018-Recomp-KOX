@@ -1,6 +1,7 @@
 name: KOX PES2018 Android APK
 
 on:
+  push:
   workflow_dispatch:
 
 permissions:
@@ -243,7 +244,7 @@ jobs:
               raise SystemExit("QuickGraphics color import patch guard failed")
           qs = qs.replace(old_import, old_import + "\nimport android.graphics.Color")
           old_label = 'fun label(text: String) = TextView(activity).apply { this.text = text; textSize = 13f; setPadding(0, px(10), 0, 0) }'
-          new_label = 'fun label(text: String) = TextView(activity).apply { this.text = text; textSize = 13f; setTextColor(Color.rgb(10, 27, 69)); setPadding(0, px(10), 0, 0) }'
+          new_label = 'fun label(text: String) = TextView(activity).apply { this.text = text; textSize = 13f; setTextColor(Color.rgb(0, 0, 0)); setPadding(0, px(10), 0, 0) }'
           if qs.count(old_label) != 1:
               raise SystemExit("QuickGraphics label contrast patch guard failed")
           qs = qs.replace(old_label, new_label)
@@ -261,7 +262,7 @@ jobs:
           qs = qs.replace('fps.progress = (v.fps - 30) / 5', 'fps.progress = ((v.fps - 30) / 5).coerceIn(0, 18)')
           qs = qs.replace('v.fps = 30 + value * 5; fpsText.text', 'v.fps = 30 + value * 5; fpsText.text')
           old_note = 'setText(R.string.qg_note); textSize = 11f; alpha = 0.7f; setPadding(0, px(10), 0, 0)'
-          new_note = 'setText(R.string.qg_note); textSize = 11f; setTextColor(Color.rgb(93, 107, 134)); alpha = 1f; setPadding(0, px(10), 0, 0)'
+          new_note = 'setText(R.string.qg_note); textSize = 11f; setTextColor(Color.rgb(0, 0, 0)); alpha = 1f; setPadding(0, px(10), 0, 0)'
           if qs.count(old_note) != 1:
               raise SystemExit("QuickGraphics note contrast patch guard failed")
           qs = qs.replace(old_note, new_note)
@@ -528,8 +529,8 @@ jobs:
         working-directory: upstream/android
         env:
           PES17_VERSION_NAME: 0.3.2-kox
-          PES17_VERSION_CODE: '27'
-          PES17_BUILD_SHA: kox-display-resolution-white-dialog-fix
+          PES17_VERSION_CODE: '28'
+          PES17_BUILD_SHA: kox-display-resolution-black-text-fix
           PES17_BUILD_STAMP: ${{ github.run_number }}
           PES17_NDK_VERSION: 28.2.13676358
           PES17_NATIVE_OPTIMISATION: -O2
