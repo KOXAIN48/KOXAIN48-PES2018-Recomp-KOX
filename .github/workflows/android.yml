@@ -283,24 +283,24 @@ jobs:
           prefs = root / "android/app/src/main/java/com/pes2017/recomp/Prefs.kt"
           ps = prefs.read_text()
           anchor = '''    var resolutionScale: Float
-        get() = store.getFloat(KEY_RESOLUTION, 0f).let { if (it <= 0f) 1.0f else it }
-        set(value) = store.edit().putFloat(KEY_RESOLUTION, value.coerceIn(0.35f, 1.0f)).apply()
-'''
+                  get() = store.getFloat(KEY_RESOLUTION, 0f).let { if (it <= 0f) 1.0f else it }
+                  set(value) = store.edit().putFloat(KEY_RESOLUTION, value.coerceIn(0.35f, 1.0f)).apply()
+          '''
           if ps.count(anchor) != 1: raise SystemExit("Display resolution preference anchor mismatch")
           ps = ps.replace(anchor, anchor + '''
-    /** Output surface size; separate from the internal 1280x720 render base. */
-    var displayResolutionWidth: Int
-        get() = store.getInt(KEY_DISPLAY_WIDTH, 2712).coerceIn(320, 7680)
-        set(value) = store.edit().putInt(KEY_DISPLAY_WIDTH, value.coerceIn(320, 7680)).apply()
-    var displayResolutionHeight: Int
-        get() = store.getInt(KEY_DISPLAY_HEIGHT, 1220).coerceIn(240, 4320)
-        set(value) = store.edit().putInt(KEY_DISPLAY_HEIGHT, value.coerceIn(240, 4320)).apply()
-''')
+              /** Output surface size; separate from the internal 1280x720 render base. */
+              var displayResolutionWidth: Int
+                  get() = store.getInt(KEY_DISPLAY_WIDTH, 2712).coerceIn(320, 7680)
+                  set(value) = store.edit().putInt(KEY_DISPLAY_WIDTH, value.coerceIn(320, 7680)).apply()
+              var displayResolutionHeight: Int
+                  get() = store.getInt(KEY_DISPLAY_HEIGHT, 1220).coerceIn(240, 4320)
+                  set(value) = store.edit().putInt(KEY_DISPLAY_HEIGHT, value.coerceIn(240, 4320)).apply()
+          ''')
           key = '        private const val KEY_RESOLUTION = "resolutionScale"'
           if ps.count(key) != 1: raise SystemExit("Display resolution key anchor mismatch")
           ps = ps.replace(key, key + '''
-        private const val KEY_DISPLAY_WIDTH = "displayResolutionWidth"
-        private const val KEY_DISPLAY_HEIGHT = "displayResolutionHeight"''')
+                  private const val KEY_DISPLAY_WIDTH = "displayResolutionWidth"
+                  private const val KEY_DISPLAY_HEIGHT = "displayResolutionHeight"''')
           prefs.write_text(ps)
 
           settings = root / "android/app/src/main/java/com/pes2017/recomp/SettingsActivity.kt"
@@ -312,24 +312,24 @@ jobs:
           anchor = "    private fun bar("
           if ss.count(anchor) != 1: raise SystemExit("Display resolution method anchor mismatch")
           method = r'''    private fun setupDisplayResolutionControl() {
-        val label = findViewById<TextView>(R.id.resolution_label)
-        val oldSeek = findViewById<SeekBar>(R.id.resolution)
-        val group = label.parent as? android.view.ViewGroup ?: return
-        label.visibility = android.view.View.GONE
-        oldSeek.visibility = android.view.View.GONE
-        if (group.childCount > 2) group.getChildAt(2).visibility = android.view.View.GONE
-        val button = Button(this).apply {
+                  val label = findViewById<TextView>(R.id.resolution_label)
+                  val oldSeek = findViewById<SeekBar>(R.id.resolution)
+                  val group = label.parent as? android.view.ViewGroup ?: return
+                  label.visibility = android.view.View.GONE
+                  oldSeek.visibility = android.view.View.GONE
+                  if (group.childCount > 2) group.getChildAt(2).visibility = android.view.View.GONE
+                  val button = Button(this).apply {
             text = "Display Resolution: " + prefs.displayResolutionWidth + " × " + prefs.displayResolutionHeight
             setOnClickListener { showDisplayResolutionDialog(this) }
-        }
-        group.addView(button, 1, android.view.ViewGroup.LayoutParams(
+                  }
+                  group.addView(button, 1, android.view.ViewGroup.LayoutParams(
             android.view.ViewGroup.LayoutParams.MATCH_PARENT,
             android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-        ))
-    }
+                  ))
+              }
 
-    private fun showDisplayResolutionDialog(button: Button) {
-        val wide = listOf(
+              private fun showDisplayResolutionDialog(button: Button) {
+                  val wide = listOf(
             1120 to 504, 1160 to 522, 1200 to 540, 1240 to 558, 1280 to 576,
             1320 to 594, 1356 to 610, 1360 to 612, 1400 to 630, 1440 to 648,
             1480 to 666, 1520 to 684, 1560 to 702, 1600 to 720, 1640 to 738,
@@ -339,40 +339,40 @@ jobs:
             2280 to 1026, 2320 to 1044, 2360 to 1062, 2400 to 1080, 2440 to 1098,
             2480 to 1116, 2520 to 1134, 2560 to 1152, 2600 to 1170, 2640 to 1188,
             2680 to 1206, 2712 to 1220
-        )
-        val standard = listOf(
+                  )
+                  val standard = listOf(
             1024 to 576, 1152 to 648, 1280 to 720, 1366 to 768, 1600 to 900,
             1920 to 1080, 2048 to 1152, 2560 to 1440, 3200 to 1800,
             3840 to 2160, 5120 to 2880, 7680 to 4320
-        )
-        val choices = wide.map { Triple("20:9", it.first, it.second) } +
+                  )
+                  val choices = wide.map { Triple("20:9", it.first, it.second) } +
             standard.map { Triple("16:9", it.first, it.second) }
-        val labels = choices.map { it.first + " — " + it.second + " × " + it.third } + "Custom…"
-        val box = android.widget.LinearLayout(this).apply {
+                  val labels = choices.map { it.first + " — " + it.second + " × " + it.third } + "Custom…"
+                  val box = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL
             setPadding(24, 12, 24, 4)
-        }
-        val spinner = android.widget.Spinner(this).apply {
+                  }
+                  val spinner = android.widget.Spinner(this).apply {
             adapter = android.widget.ArrayAdapter(this@SettingsActivity, android.R.layout.simple_spinner_item, labels)
                 .also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
-        }
-        val width = android.widget.EditText(this).apply {
+                  }
+                  val width = android.widget.EditText(this).apply {
             hint = "Custom width (320–7680)"
             inputType = android.text.InputType.TYPE_CLASS_NUMBER
             setText(prefs.displayResolutionWidth.toString())
-        }
-        val height = android.widget.EditText(this).apply {
+                  }
+                  val height = android.widget.EditText(this).apply {
             hint = "Custom height (240–4320)"
             inputType = android.text.InputType.TYPE_CLASS_NUMBER
             setText(prefs.displayResolutionHeight.toString())
-        }
-        box.addView(TextView(this).apply { text = "Aspect ratio / resolution" })
-        box.addView(spinner); box.addView(width); box.addView(height)
-        val selected = choices.indexOfFirst {
+                  }
+                  box.addView(TextView(this).apply { text = "Aspect ratio / resolution" })
+                  box.addView(spinner); box.addView(width); box.addView(height)
+                  val selected = choices.indexOfFirst {
             it.second == prefs.displayResolutionWidth && it.third == prefs.displayResolutionHeight
-        }
-        spinner.setSelection(if (selected >= 0) selected else choices.size)
-        spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                  }
+                  spinner.setSelection(if (selected >= 0) selected else choices.size)
+                  spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
             override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
                 if (position < choices.size) {
@@ -380,8 +380,8 @@ jobs:
                     height.setText(choices[position].third.toString())
                 }
             }
-        }
-        AlertDialog.Builder(this)
+                  }
+                  AlertDialog.Builder(this)
             .setTitle("Display Resolution")
             .setMessage("Game output surface only; Android system resolution is unchanged. 16:9 is fitted with side bars when needed. Restart the match to apply.")
             .setView(box)
@@ -399,9 +399,9 @@ jobs:
                 }
             }
             .show()
-    }
+              }
 
-'''
+          '''
           ss = ss.replace(anchor, method + anchor)
           settings.write_text(ss)
 
@@ -415,12 +415,12 @@ jobs:
           if gs.count(old_surface) != 1: raise SystemExit("Display surface buffer anchor mismatch")
           gs = gs.replace(old_surface, new_surface)
           old_end = '''        setContentView(root)
-    }
+              }
 
-    private fun smallButton'''
+              private fun smallButton'''
           new_end = '''        setContentView(root)
-        // Fit the selected aspect ratio; touch controls remain full-screen.
-        root.post {
+                  // Fit the selected aspect ratio; touch controls remain full-screen.
+                  root.post {
             val aw = root.width.coerceAtLeast(1)
             val ah = root.height.coerceAtLeast(1)
             val tw = prefs.displayResolutionWidth
@@ -438,10 +438,10 @@ jobs:
             }
             surfaceView.layoutParams = FrameLayout.LayoutParams(fw, fh, Gravity.CENTER)
             surfaceView.holder.setFixedSize(tw, th)
-        }
-    }
+                  }
+              }
 
-    private fun smallButton'''
+              private fun smallButton'''
           if gs.count(old_end) != 1: raise SystemExit("Display viewport fitting anchor mismatch")
           gs = gs.replace(old_end, new_end)
           game.write_text(gs)
@@ -471,12 +471,12 @@ jobs:
           old_end = '            .setOnDismissListener { onClose() }\n            .show()'
           new_end = '''            .setOnDismissListener { onClose() }
             .create()
-        dialog.setOnShowListener {
+                  dialog.setOnShowListener {
             dialog.findViewById<TextView>(androidx.appcompat.R.id.alertTitle)?.setTextColor(Color.rgb(10, 27, 69))
             dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(Color.rgb(10, 27, 69))
             dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.setTextColor(Color.rgb(10, 27, 69))
-        }
-        dialog.show()'''
+                  }
+                  dialog.show()'''
           if qs.count(old_end) != 1: raise SystemExit("Quick Graphics dialog button contrast anchor mismatch")
           qs = qs.replace(old_end, new_end)
           quick.write_text(qs)
