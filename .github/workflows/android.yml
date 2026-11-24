@@ -2,6 +2,8 @@ name: KOX PES2018 Android APK
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
 
 permissions:
   contents: read
@@ -188,6 +190,18 @@ jobs:
               raise SystemExit("Refresh-rate runtime block patch guard failed in GameActivity.kt")
           game.write_text(s.replace(old_game, new_game))
 
+          # Update diagnostic text after removing the legacy prefer60Hz preference.
+          capture = root / "android/app/src/main/java/com/pes2017/recomp/CaptureSession.kt"
+          s = capture.read_text()
+          old_capture_ref = "60 Hz lock ${prefs.prefer60Hz}"
+          new_capture_ref = "selected refresh ${prefs.displayRefreshRate} Hz"
+          if s.count(old_capture_ref) != 2:
+              raise SystemExit("CaptureSession display preference patch guard failed")
+          s = s.replace(old_capture_ref, new_capture_ref)
+          if "prefs.prefer60Hz" in s:
+              raise SystemExit("Legacy prefer60Hz reference remains in CaptureSession.kt")
+          capture.write_text(s)
+
           # Verify all KOX patches are present before compiling.
           checks = {
               "Mali load scaling": "loadScale = true" in (root / "android/app/src/main/java/com/pes2017/recomp/DeviceProfile.kt").read_text(),
@@ -195,6 +209,7 @@ jobs:
               "refresh rate preference": "var displayRefreshRate: Int" in prefs.read_text(),
               "refresh rate selector": "Lock Display Refresh Rate" in settings.read_text(),
               "runtime refresh rate": "prefs.displayRefreshRate" in game.read_text(),
+              "capture diagnostics migrated": "prefs.prefer60Hz" not in (root / "android/app/src/main/java/com/pes2017/recomp/CaptureSession.kt").read_text(),
           }
           for name, ok in checks.items():
               print(f"{name}: {'OK' if ok else 'MISSING'}")
