@@ -1,4 +1,4 @@
-name: KOX PES2018 Android APK # Rebuild after Multi-Patch CPK list UI fix
+name: KOX PES2018 Android APK # Rebuild after per-CPK selection UI
 # Rebuild after Multi-Patch compile fix
 
 'on':
