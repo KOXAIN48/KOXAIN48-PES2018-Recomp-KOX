@@ -28,7 +28,13 @@ class MultiPatchInstaller(
         KEEP_HIGHEST_PRIORITY,
     }
 
-    data class Source(val id: String, val label: String, val directory: File)
+    data class Source(
+        val id: String,
+        val label: String,
+        val directory: File,
+        /** Relative paths selected by the user; null means include every CPK. */
+        val selectedRelativePaths: Set<String>? = null,
+    )
     data class Conflict(val fileName: String, val keptSource: String, val ignoredSources: List<String>)
     data class InstallReport(
         val cpkNames: List<String>,
@@ -54,17 +60,21 @@ class MultiPatchInstaller(
 
         val byName = LinkedHashMap<String, MutableList<Candidate>>()
         sourcesHighestPriorityFirst.forEach { source ->
-            val files = source.directory.walkTopDown()
+            val allFiles = source.directory.walkTopDown()
                 .filter { it.isFile && it.extension.equals("cpk", ignoreCase = true) }
                 .sortedBy { it.name.lowercase(Locale.ROOT) }
                 .toList()
-            require(files.isNotEmpty()) { "No CPK files found in source: ${source.label}" }
+            require(allFiles.isNotEmpty()) { "No CPK files found in source: ${source.label}" }
+            val files = source.selectedRelativePaths?.let { selected ->
+                allFiles.filter { it.relativeTo(source.directory).invariantSeparatorsPath in selected }
+            } ?: allFiles
             files.forEach { file ->
                 validateCpk(file)
                 byName.getOrPut(file.name.lowercase(Locale.ROOT)) { mutableListOf() }
                     .add(Candidate(source, file))
             }
         }
+        require(byName.isNotEmpty()) { "Select at least one CPK file before generating the combined patch." }
 
         val conflicts = byName.values.filter { it.size > 1 }.map { candidates ->
             Conflict(
