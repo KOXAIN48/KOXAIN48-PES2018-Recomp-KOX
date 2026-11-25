@@ -505,6 +505,15 @@ jobs:
               raise SystemExit("Live FPS patch guard failed: frame_rate::Limit cache anchor")
           fps_header.write_text(fh.replace(old_limit, new_limit))
 
+          # Aspect ratio is sampled by Letterbox for each presented frame.
+          presenter = root / "runtime/gpu/vulkan/presenter.cpp"
+          pc = presenter.read_text()
+          old_aspect = '        static const double aspect = env::Real("PES17_ASPECT");'
+          new_aspect = '        const double aspect = env::Real("PES17_ASPECT");'
+          if pc.count(old_aspect) != 1:
+              raise SystemExit("Live aspect patch guard failed: Letterbox aspect cache anchor")
+          presenter.write_text(pc.replace(old_aspect, new_aspect))
+
           # Verify all KOX patches are present before compiling.
           checks = {
               "Dynamic scaling disabled for render-bug isolation": "heatScale = false, loadScale = false" in (root / "android/app/src/main/java/com/pes2017/recomp/DeviceProfile.kt").read_text(),
@@ -517,6 +526,7 @@ jobs:
               "Frame Limit preference range": ".coerceIn(30, 120)" in prefs.read_text(),
               "Frame Limit native dispatch": "else -> prefs.fpsLimit.toString()" in game.read_text(),
           "Live FPS reads runtime option": "return uint32_t(std::min<uint64_t>(env::Number(\"PES17_FPS_LIMIT\", kConsole), 1000));" in (root / "runtime/frame_rate.h").read_text(),
+              "Live aspect reads runtime option": 'const double aspect = env::Real("PES17_ASPECT");' in (root / "runtime/gpu/vulkan/presenter.cpp").read_text(),
               "Quick Graphics text contrast": "setTextColor(Color.rgb(10, 27, 69))" in (root / "android/app/src/main/java/com/pes2017/recomp/QuickGraphics.kt").read_text(),
               "Quick Graphics 120 FPS range": "max = 18" in (root / "android/app/src/main/java/com/pes2017/recomp/QuickGraphics.kt").read_text(),
               "Internal and match render controls": "Internal render multiplier" in (root / "android/app/src/main/res/values/strings.xml").read_text() and "Match render quality" in (root / "android/app/src/main/res/values/strings.xml").read_text(),
