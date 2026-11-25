@@ -514,7 +514,83 @@ jobs:
               raise SystemExit("Live aspect patch guard failed: Letterbox aspect cache anchor")
           presenter.write_text(pc.replace(old_aspect, new_aspect))
 
-          # Verify all KOX patches are present before compiling.
+          # Add persistent, draggable HUD positioning (tap still opens the details card).
+          prefs = root / "android/app/src/main/java/com/pes2017/recomp/Prefs.kt"
+          ps = prefs.read_text()
+          sound_anchor = "    // ---- sound"
+          if ps.count(sound_anchor) != 1: raise SystemExit("HUD position property anchor mismatch")
+          ps = ps.replace(sound_anchor, '''    /** HUD position offsets in dp, saved across matches. */
+              var hudOffsetX: Float
+                  get() = store.getFloat(KEY_HUD_X, 0f)
+                  set(value) = store.edit().putFloat(KEY_HUD_X, value.coerceIn(-2000f, 2000f)).apply()
+              var hudOffsetY: Float
+                  get() = store.getFloat(KEY_HUD_Y, 0f)
+                  set(value) = store.edit().putFloat(KEY_HUD_Y, value.coerceIn(-2000f, 2000f)).apply()
+
+          ''' + sound_anchor)
+          key_anchor = '        private const val KEY_RESOLUTION = "resolutionScale"'
+          if ps.count(key_anchor) != 1: raise SystemExit("HUD position key anchor mismatch")
+          ps = ps.replace(key_anchor, key_anchor + '''
+                  private const val KEY_HUD_X = "hudOffsetX"
+                  private const val KEY_HUD_Y = "hudOffsetY"''')
+          prefs.write_text(ps)
+
+          game = root / "android/app/src/main/java/com/pes2017/recomp/GameActivity.kt"
+          gs = game.read_text()
+          old_bg = "        statsText.background = pillBg"
+          new_bg = '''        statsText.background = pillBg
+                  hudContainer.translationX = prefs.hudOffsetX
+                  hudContainer.translationY = prefs.hudOffsetY
+                  var hudDownX = 0f
+                  var hudDownY = 0f
+                  var hudStartX = 0f
+                  var hudStartY = 0f
+                  var hudDragging = false
+                  val dragThreshold = pad(8).toFloat()
+                  statsText.setOnTouchListener { view, event ->
+                      when (event.actionMasked) {
+                          android.view.MotionEvent.ACTION_DOWN -> {
+                              hudDownX = event.rawX
+                              hudDownY = event.rawY
+                              hudStartX = hudContainer.translationX
+                              hudStartY = hudContainer.translationY
+                              hudDragging = false
+                              true
+                          }
+                          android.view.MotionEvent.ACTION_MOVE -> {
+                              val dx = event.rawX - hudDownX
+                              val dy = event.rawY - hudDownY
+                              if (hudDragging || kotlin.math.abs(dx) > dragThreshold || kotlin.math.abs(dy) > dragThreshold) {
+                                  hudDragging = true
+                                  hudContainer.translationX = hudStartX + dx
+                                  hudContainer.translationY = hudStartY + dy
+                              }
+                              true
+                          }
+                          android.view.MotionEvent.ACTION_UP -> {
+                              if (hudDragging) {
+                                  prefs.hudOffsetX = hudContainer.translationX
+                                  prefs.hudOffsetY = hudContainer.translationY
+                              } else {
+                                  view.performClick()
+                              }
+                              true
+                          }
+                          android.view.MotionEvent.ACTION_CANCEL -> {
+                              if (hudDragging) {
+                                  prefs.hudOffsetX = hudContainer.translationX
+                                  prefs.hudOffsetY = hudContainer.translationY
+                              }
+                              true
+                          }
+                          else -> true
+                      }
+                  }'''
+          if gs.count(old_bg) != 1: raise SystemExit("HUD drag insertion anchor mismatch")
+          gs = gs.replace(old_bg, new_bg)
+          game.write_text(gs)
+
+                    # Verify all KOX patches are present before compiling.
           checks = {
               "Dynamic scaling disabled for render-bug isolation": "heatScale = false, loadScale = false" in (root / "android/app/src/main/java/com/pes2017/recomp/DeviceProfile.kt").read_text(),
               "12 GB texture range": "R.id.texture_label, 96," in settings.read_text() and ".coerceIn(1, 96)" in settings.read_text(),
