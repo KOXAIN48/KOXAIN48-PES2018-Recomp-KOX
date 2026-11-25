@@ -679,21 +679,13 @@ jobs:
               override fun onStopTrackingTouch(bar: SeekBar) = Unit
           })
           fun touched() { if (!quiet)''')
-          # Remove the original scene listener, replaced above.
-          old_scene_listener = '''        scene.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-              override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
-                  if (!fromUser) return
-                  v.scene = 50 + value * 5; sceneText.text = activity.getString(R.string.qg_scene, v.scene); touched()
-              }
-              override fun onStartTrackingTouch(bar: SeekBar) = Unit
-              override fun onStopTrackingTouch(bar: SeekBar) = Unit
-          })
-          '''
-          if qs.count(old_scene_listener) != 1:
-              raise SystemExit("Scene slider replacement guard failed")
-          qs = qs.replace(old_scene_listener, "")
+          # Keep the upstream listener but add live native dispatch to it.
+          old_scene_line = 'v.scene = 50 + value * 5; sceneText.text = activity.getString(R.string.qg_scene, v.scene); touched()'
+          new_scene_line = 'v.scene = 50 + value * 5; prefs.sceneScalePercent = v.scene; NativeBridge.nativeSetOption("PES17_SCENE_SCALE", (v.scene / 100f).toString()); sceneText.text = activity.getString(R.string.qg_scene, v.scene); touched()'
+          if qs.count(old_scene_line) != 1:
+              raise SystemExit("Live scene slider callback anchor mismatch")
+          qs = qs.replace(old_scene_line, new_scene_line)
           qs = qs.replace('        column.addView(fpsText); column.addView(fps)', '        column.addView(fpsText); column.addView(fps)\\n        column.addView(aspectText); column.addView(aspect)')
-          qs = qs.replace('            prefs.sceneScalePercent = intent.getIntExtra(X_SCENE, prefs.sceneScalePercent)', '            prefs.sceneScalePercent = intent.getIntExtra(X_SCENE, prefs.sceneScalePercent)')
           quick.write_text(qs)
 
           # Persist aspect ratio and set it before the native runtime starts.
