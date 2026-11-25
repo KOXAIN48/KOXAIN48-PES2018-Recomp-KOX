@@ -192,7 +192,6 @@ class MultiPatchActivity : AppCompatActivity() {
                     // The merged set is now a hand-managed pack; discard the
                     // old app provenance so PATCHES verifies the live files.
                     PatchStateStore.clearSlot(active.parentFile.parentFile, InstallSlot.PATCH)
-                    PatchesDashboard.invalidate()
                     val conflicts = if (report.conflicts.isEmpty()) "Tidak ada konflik nama CPK."
                     else "Konflik diselesaikan: ${report.conflicts.joinToString { it.fileName }}."
                     AlertDialog.Builder(this)
