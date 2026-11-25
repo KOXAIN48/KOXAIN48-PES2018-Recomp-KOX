@@ -666,18 +666,6 @@ jobs:
               override fun onStartTrackingTouch(bar: SeekBar) = Unit
               override fun onStopTrackingTouch(bar: SeekBar) = Unit
           })
-          scene.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-              override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
-                  if (!fromUser) return
-                  v.scene = 50 + value * 5
-                  prefs.sceneScalePercent = v.scene
-                  NativeBridge.nativeSetOption("PES17_SCENE_SCALE", (v.scene / 100f).toString())
-                  sceneText.text = activity.getString(R.string.qg_scene, v.scene)
-                  touched()
-              }
-              override fun onStartTrackingTouch(bar: SeekBar) = Unit
-              override fun onStopTrackingTouch(bar: SeekBar) = Unit
-          })
           fun touched() { if (!quiet)''')
           # Keep the upstream listener but add live native dispatch to it.
           old_scene_line = 'v.scene = 50 + value * 5; sceneText.text = activity.getString(R.string.qg_scene, v.scene); touched()'
