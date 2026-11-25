@@ -287,6 +287,12 @@ jobs:
                   val hudColorPicker = android.widget.Spinner(activity).apply {
                       adapter = android.widget.ArrayAdapter(activity, android.R.layout.simple_spinner_dropdown_item, hudColorNames)
                       setSelection(hudColorValues.indexOf(prefs.hudColor).coerceAtLeast(0))
+                      onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                          override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
+                          override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                              (activity as? GameActivity)?.applyHudTextColor(hudColorValues[position])
+                          }
+                      }
                   }
           '''
           if qs.count(color_anchor) != 1:
@@ -765,10 +771,22 @@ jobs:
 
           game = root / "android/app/src/main/java/com/pes2017/recomp/GameActivity.kt"
           gs = game.read_text()
+          method_anchor = "    private fun showMenu() {"
+          method = """    fun applyHudTextColor(value: String) {
+                  prefs.hudColor = value
+                  val color = Color.parseColor(prefs.hudColor)
+                  if (::statsText.isInitialized) statsText.setTextColor(color)
+                  if (::hudExpandedText.isInitialized) hudExpandedText.setTextColor(color)
+              }
+
+          """
+          if gs.count(method_anchor) != 1:
+              raise SystemExit("Live HUD text color method anchor mismatch")
+          gs = gs.replace(method_anchor, method + method_anchor)
           gs = gs.replace('        statsText.textSize = 10f', '        statsText.textSize = prefs.hudTextSize')
           gs = gs.replace('        statsText.background = pillBg', '''        statsText.background = pillBg
                   statsText.alpha = prefs.hudOpacity
-                  try { pillBg.setColor(Color.parseColor(prefs.hudColor)) } catch (_: IllegalArgumentException) {}
+                  statsText.setTextColor(Color.parseColor(prefs.hudColor))
                   statsText.setOnLongClickListener {
                       val panel = LinearLayout(this).apply {
                           orientation = LinearLayout.VERTICAL
@@ -807,7 +825,7 @@ jobs:
                               override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
                               override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
                                   prefs.hudColor = values[position]
-                                  pillBg.setColor(Color.parseColor(prefs.hudColor))
+                                  applyHudTextColor(values[position])
                               }
                           }
                       }
