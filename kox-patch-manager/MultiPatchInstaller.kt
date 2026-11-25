@@ -40,7 +40,7 @@ class MultiPatchInstaller(
         val cpkNames: List<String>,
         val sourceCount: Int,
         val conflicts: List<Conflict>,
-        val backup: File?,
+        val backup: File? = null,
     )
 
     private data class Candidate(val source: Source, val file: File)
@@ -98,7 +98,6 @@ class MultiPatchInstaller(
         }
         val stage = File(stageParent, activePatchDirectory.name + ".kox-stage")
         val displaced = File(stageParent, activePatchDirectory.name + ".kox-displaced")
-        val backup = File(backupDirectory, "multi-${System.currentTimeMillis()}")
         stage.deleteRecursively()
         displaced.deleteRecursively()
         if (!stage.mkdirs()) throw IOException("Cannot create staging directory: $stage")
@@ -139,13 +138,10 @@ class MultiPatchInstaller(
             }
             newActiveMoved = true
 
-            if (activeMoved) {
-                if (!displaced.renameTo(backup)) {
-                    // Preserve the old active tree in the displaced path; do not delete it.
-                    throw IOException("New patch is active, but the backup remains at ${displaced.path}.")
-                }
-            }
-            return InstallReport(names, sourcesHighestPriorityFirst.size, conflicts, backup.takeIf { activeMoved })
+            // The prior active directory is only a temporary rollback copy.
+            // Once the new directory is active, remove the displaced tree.
+            if (activeMoved) displaced.deleteRecursively()
+            return InstallReport(names, sourcesHighestPriorityFirst.size, conflicts, null)
         } catch (t: Throwable) {
             if (newActiveMoved) activePatchDirectory.deleteRecursively()
             if (activeMoved && displaced.exists()) {
@@ -159,7 +155,7 @@ class MultiPatchInstaller(
             throw t
         } finally {
             stage.deleteRecursively()
-            // Never delete displaced here: it may be the only surviving copy after a failed rollback.
+            // If rollback itself failed, keep the displaced directory as recovery data.
         }
     }
 
