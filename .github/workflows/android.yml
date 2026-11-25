@@ -494,6 +494,17 @@ jobs:
           qs = qs.replace(old_end, new_end)
           quick.write_text(qs)
 
+          # Make the native FPS limiter live-updateable. nativeSetOption already
+          # updates PES17_* environment variables; Limit() must read the current
+          # value instead of caching the first value for the whole process.
+          fps_header = root / "runtime/frame_rate.h"
+          fh = fps_header.read_text()
+          old_limit = '        static const uint32_t limit = uint32_t(std::min<uint64_t>(env::Number("PES17_FPS_LIMIT", kConsole), 1000));\n        return limit;'
+          new_limit = '        return uint32_t(std::min<uint64_t>(env::Number("PES17_FPS_LIMIT", kConsole), 1000));'
+          if fh.count(old_limit) != 1:
+              raise SystemExit("Live FPS patch guard failed: frame_rate::Limit cache anchor")
+          fps_header.write_text(fh.replace(old_limit, new_limit))
+
           # Verify all KOX patches are present before compiling.
           checks = {
               "Dynamic scaling disabled for render-bug isolation": "heatScale = false, loadScale = false" in (root / "android/app/src/main/java/com/pes2017/recomp/DeviceProfile.kt").read_text(),
@@ -505,6 +516,7 @@ jobs:
               "Frame Limit slider to 120": "R.id.fps_limit_label, 18," in settings.read_text(),
               "Frame Limit preference range": ".coerceIn(30, 120)" in prefs.read_text(),
               "Frame Limit native dispatch": "else -> prefs.fpsLimit.toString()" in game.read_text(),
+          "Live FPS reads runtime option": "return uint32_t(std::min<uint64_t>(env::Number(\"PES17_FPS_LIMIT\", kConsole), 1000));" in (root / "runtime/frame_rate.h").read_text(),
               "Quick Graphics text contrast": "setTextColor(Color.rgb(10, 27, 69))" in (root / "android/app/src/main/java/com/pes2017/recomp/QuickGraphics.kt").read_text(),
               "Quick Graphics 120 FPS range": "max = 18" in (root / "android/app/src/main/java/com/pes2017/recomp/QuickGraphics.kt").read_text(),
               "Internal and match render controls": "Internal render multiplier" in (root / "android/app/src/main/res/values/strings.xml").read_text() and "Match render quality" in (root / "android/app/src/main/res/values/strings.xml").read_text(),
