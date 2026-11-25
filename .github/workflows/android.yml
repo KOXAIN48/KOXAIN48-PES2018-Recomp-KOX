@@ -29,7 +29,9 @@ jobs:
           mkdir -p upstream/android/app/src/main/java/com/koxain/patchmanager
           mkdir -p upstream/android/app/src/test/java/com/koxain/patchmanager
           cp kox-patch-manager/DpFileListComposer.kt upstream/android/app/src/main/java/com/koxain/patchmanager/
+          cp kox-patch-manager/MultiPatchInstaller.kt upstream/android/app/src/main/java/com/koxain/patchmanager/
           cp kox-patch-manager/DpFileListComposerTest.kt upstream/android/app/src/test/java/com/koxain/patchmanager/
+          cp kox-patch-manager/MultiPatchInstallerTest.kt upstream/android/app/src/test/java/com/koxain/patchmanager/
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
