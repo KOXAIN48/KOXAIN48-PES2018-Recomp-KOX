@@ -124,7 +124,7 @@ jobs:
                   const auto now = clock::now();
                   const auto period = std::chrono::microseconds(1000000 / limit);"""
           new_pace = """        static clock::time_point next{};
-                  static uint32_t previousLimit = UINT32_MAX;
+                  static uint32_t previousLimit = ~0u;
                   const auto now = clock::now();
                   if (previousLimit != limit) { next = now; previousLimit = limit; }
                   const auto period = std::chrono::microseconds(1000000 / limit);"""
