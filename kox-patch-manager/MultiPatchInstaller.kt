@@ -54,10 +54,10 @@ class MultiPatchInstaller(
 
         val byName = LinkedHashMap<String, MutableList<Candidate>>()
         sourcesHighestPriorityFirst.forEach { source ->
-            val files = source.directory.listFiles()
-                ?.filter { it.isFile && it.extension.equals("cpk", ignoreCase = true) }
-                ?.sortedBy { it.name.lowercase(Locale.ROOT) }
-                ?: throw IOException("Cannot read source folder: ${source.directory}")
+            val files = source.directory.walkTopDown()
+                .filter { it.isFile && it.extension.equals("cpk", ignoreCase = true) }
+                .sortedBy { it.name.lowercase(Locale.ROOT) }
+                .toList()
             require(files.isNotEmpty()) { "No CPK files found in source: ${source.label}" }
             files.forEach { file ->
                 validateCpk(file)
