@@ -35,6 +35,34 @@ class MultiPatchInstallerTest {
         }
     }
 
+    @Test fun installsOnlyCpkFilesSelectedByTheUser() {
+        val root = createTempDir(prefix = "multi-selection")
+        try {
+            val source = File(root, "source").apply { mkdirs() }
+            File(source, "stadium.cpk").writeBytes(cpk())
+            File(source, "turf.cpk").writeBytes(cpk())
+            File(source, "kit.cpk").writeBytes(cpk())
+            val active = File(root, "active")
+            val report = MultiPatchInstaller(active, File(root, "backups")).install(
+                listOf(
+                    MultiPatchInstaller.Source(
+                        "source",
+                        "Selected patch",
+                        source,
+                        setOf("stadium.cpk", "kit.cpk"),
+                    ),
+                ),
+            )
+            assertEquals(listOf("kit.cpk", "stadium.cpk"), report.cpkNames)
+            assertTrue(File(active, "stadium.cpk").isFile)
+            assertTrue(File(active, "kit.cpk").isFile)
+            assertFalse(File(active, "turf.cpk").exists())
+            DpFileListComposer.validate(File(active, "DpFileList.bin").readBytes(), report.cpkNames)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
     @Test fun rejectsDuplicateCpkNamesByDefaultWithoutChangingActive() {
         val root = createTempDir(prefix = "multi-conflict")
         try {
