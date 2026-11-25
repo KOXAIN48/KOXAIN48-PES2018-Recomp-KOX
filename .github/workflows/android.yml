@@ -793,7 +793,9 @@ jobs:
 
               fun applyHudBackgroundOpacity(value: Float) {
                   prefs.hudOpacity = value
-                  if (::statsText.isInitialized) statsText.background?.alpha = (prefs.hudOpacity * 255f).roundToInt()
+                  val alpha = (prefs.hudOpacity * 255f).roundToInt()
+                  if (::statsText.isInitialized) statsText.background?.alpha = alpha
+                  if (::hudExpandedCard.isInitialized) hudExpandedCard.background?.alpha = alpha
               }
 
           """
@@ -801,6 +803,8 @@ jobs:
               raise SystemExit("Live HUD text color method anchor mismatch")
           gs = gs.replace(method_anchor, method + method_anchor)
           gs = gs.replace('        statsText.textSize = 10f', '        statsText.textSize = prefs.hudTextSize')
+          gs = gs.replace('        hudExpandedCard.addView(hudExpandedText)', '''        hudExpandedCard.addView(hudExpandedText)
+                  hudExpandedCard.background?.alpha = (prefs.hudOpacity * 255f).roundToInt()''')
           gs = gs.replace('        statsText.background = pillBg', '''        statsText.background = pillBg
                   hudContainer.scaleX = prefs.hudScale
                   hudContainer.scaleY = prefs.hudScale
