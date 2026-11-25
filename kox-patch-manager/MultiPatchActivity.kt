@@ -160,7 +160,7 @@ class MultiPatchActivity : AppCompatActivity() {
         }
         val dialog = AlertDialog.Builder(this)
             .setTitle("Generate DpFileList gabungan?")
-            .setMessage("Sumber: ${sources.size}\nPrioritas: dari atas ke bawah\nFile aktif akan dicadangkan sebelum diganti.")
+            .setMessage("Sumber: ${sources.size}\nPrioritas: dari atas ke bawah\nHanya CPK yang dicentang akan dipasang. File patch lama tidak dicadangkan.")
             .setNegativeButton("BATAL", null)
             .setPositiveButton("GENERATE", null)
             .create()
@@ -187,7 +187,7 @@ class MultiPatchActivity : AppCompatActivity() {
         thread(name = "kox-multi-patch-install") {
             val result = runCatching {
                 MultiPatchInstaller(active, backup).install(
-                    sources.map { MultiPatchInstaller.Source(it.id, it.label, it.directory) },
+                    sources.map { MultiPatchInstaller.Source(it.id, it.label, it.directory, selectedCpkPaths(it)) },
                     policy,
                 )
             }
@@ -201,7 +201,7 @@ class MultiPatchActivity : AppCompatActivity() {
                     else "Konflik diselesaikan: ${report.conflicts.joinToString { it.fileName }}."
                     AlertDialog.Builder(this)
                         .setTitle("Patch gabungan berhasil")
-                        .setMessage("${report.cpkNames.size} CPK dipasang.\n$conflicts\nBackup lama: ${report.backup?.absolutePath ?: "Belum ada patch lama untuk dicadangkan."}")
+                        .setMessage("${report.cpkNames.size} CPK dipasang dari ${report.sourceCount} sumber.\n$conflicts\nTidak ada backup patch yang dibuat.")
                         .setPositiveButton("OK", null)
                         .show()
                 }.onFailure { error ->
