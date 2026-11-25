@@ -16,6 +16,9 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.documentfile.provider.DocumentFile
 import com.koxain.patchmanager.MultiPatchInstaller
+import com.pes2017.recomp.patch.install.PatchInstaller
+import com.pes2017.recomp.patch.install.PatchStateStore
+import com.pes2017.recomp.patch.install.InstallSlot
 import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
@@ -138,8 +141,13 @@ class MultiPatchActivity : AppCompatActivity() {
             toast("Folder game PES 2018 belum dipilih.")
             return
         }
+        if (PatchInstaller.pending(root)) {
+            toast("Operasi patch lain masih berjalan atau pemulihan belum selesai.")
+            return
+        }
         val active = File(root, "dlc/SYSTEM00000000")
-        val backup = File(root, "patch-backups/multi")
+        // Match the existing PATCHES backup slot so RESTORE PREVIOUS can see it.
+        val backup = File(root, "patch-backups/patch")
         val policy = if (conflictChoice.isChecked) {
             MultiPatchInstaller.ConflictPolicy.KEEP_HIGHEST_PRIORITY
         } else {
@@ -181,6 +189,9 @@ class MultiPatchActivity : AppCompatActivity() {
             runOnUiThread {
                 progress.dismiss()
                 result.onSuccess { report ->
+                    // The merged set is now a hand-managed pack; discard the
+                    // old app provenance so PATCHES verifies the live files.
+                    PatchStateStore.clearSlot(active.parentFile.parentFile, InstallSlot.PATCH)
                     PatchesDashboard.invalidate()
                     val conflicts = if (report.conflicts.isEmpty()) "Tidak ada konflik nama CPK."
                     else "Konflik diselesaikan: ${report.conflicts.joinToString { it.fileName }}."
