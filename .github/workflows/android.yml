@@ -753,9 +753,12 @@ jobs:
           ps = ps.replace(hud_anchor, '''    var hudTextSize: Float
                   get() = store.getFloat(KEY_HUD_SIZE, 10f).coerceIn(8f, 20f)
                   set(value) = store.edit().putFloat(KEY_HUD_SIZE, value.coerceIn(8f, 20f)).apply()
+              var hudScale: Float
+                  get() = store.getFloat(KEY_HUD_SCALE, 1f).coerceIn(0.5f, 1.5f)
+                  set(value) = store.edit().putFloat(KEY_HUD_SCALE, value.coerceIn(0.5f, 1.5f)).apply()
               var hudOpacity: Float
-                  get() = store.getFloat(KEY_HUD_OPACITY, 1f).coerceIn(0.25f, 1f)
-                  set(value) = store.edit().putFloat(KEY_HUD_OPACITY, value.coerceIn(0.25f, 1f)).apply()
+                  get() = store.getFloat(KEY_HUD_OPACITY, 1f).coerceIn(0f, 1f)
+                  set(value) = store.edit().putFloat(KEY_HUD_OPACITY, value.coerceIn(0f, 1f)).apply()
               var hudColor: String
                   get() = store.getString(KEY_HUD_COLOR, "#D70F172A") ?: "#D70F172A"
                   set(value) = store.edit().putString(KEY_HUD_COLOR, value.takeIf { it in setOf("#D70B0B0B", "#D7FFFFFF", "#D7666666", "#D7BFC7D5", "#D7E53935", "#D7A31525", "#D7EC407A", "#D7FB8C00", "#D7FFB300", "#D7FDD835", "#D7D4AF37", "#D7AEEA00", "#D743A047", "#D74DB6AC", "#D700BCD4", "#D703A9F4", "#D72196F3", "#D7153A73") } ?: "#D70B0B0B").apply()
@@ -764,6 +767,7 @@ jobs:
           key = '        private const val KEY_HUD_X = "hudOffsetX"'
           if ps.count(key) != 1: raise SystemExit("HUD style key anchor mismatch")
           ps = ps.replace(key, '''        private const val KEY_HUD_SIZE = "hudTextSize"
+                  private const val KEY_HUD_SCALE = "hudScale"
                   private const val KEY_HUD_OPACITY = "hudOpacity"
                   private const val KEY_HUD_COLOR = "hudColor"
           ''' + key)
@@ -779,13 +783,28 @@ jobs:
                   if (::hudExpandedText.isInitialized) hudExpandedText.setTextColor(color)
               }
 
+              fun applyHudScale(value: Float) {
+                  prefs.hudScale = value
+                  if (::hudContainer.isInitialized) {
+                      hudContainer.scaleX = prefs.hudScale
+                      hudContainer.scaleY = prefs.hudScale
+                  }
+              }
+
+              fun applyHudBackgroundOpacity(value: Float) {
+                  prefs.hudOpacity = value
+                  if (::statsText.isInitialized) statsText.background?.alpha = (prefs.hudOpacity * 255f).roundToInt()
+              }
+
           """
           if gs.count(method_anchor) != 1:
               raise SystemExit("Live HUD text color method anchor mismatch")
           gs = gs.replace(method_anchor, method + method_anchor)
           gs = gs.replace('        statsText.textSize = 10f', '        statsText.textSize = prefs.hudTextSize')
           gs = gs.replace('        statsText.background = pillBg', '''        statsText.background = pillBg
-                  statsText.alpha = prefs.hudOpacity
+                  hudContainer.scaleX = prefs.hudScale
+                  hudContainer.scaleY = prefs.hudScale
+                  pillBg.alpha = (prefs.hudOpacity * 255f).roundToInt()
                   statsText.setTextColor(Color.parseColor(prefs.hudColor))
                   statsText.setOnLongClickListener {
                       val panel = LinearLayout(this).apply {
@@ -804,13 +823,25 @@ jobs:
                               override fun onStopTrackingTouch(bar: SeekBar) = Unit
                           })
                       }
-                      val opacityLabel = TextView(this).apply { text = "HUD opacity: ${(prefs.hudOpacity * 100).roundToInt()}%" }
-                      val opacityBar = SeekBar(this).apply {
-                          max = 75
-                          progress = ((prefs.hudOpacity - 0.25f) * 100f).roundToInt()
+                      val scaleLabel = TextView(this).apply { text = "HUD size: ${(prefs.hudScale * 100).roundToInt()}%" }
+                      val scaleBar = SeekBar(this).apply {
+                          max = 100
+                          progress = ((prefs.hudScale - 0.5f) * 100f).roundToInt()
                           setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                               override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
-                                  if (fromUser) { prefs.hudOpacity = 0.25f + value / 100f; opacityLabel.text = "HUD opacity: ${(prefs.hudOpacity * 100).roundToInt()}%"; statsText.alpha = prefs.hudOpacity }
+                                  if (fromUser) { applyHudScale(0.5f + value / 100f); scaleLabel.text = "HUD size: ${(prefs.hudScale * 100).roundToInt()}%" }
+                              }
+                              override fun onStartTrackingTouch(bar: SeekBar) = Unit
+                              override fun onStopTrackingTouch(bar: SeekBar) = Unit
+                          })
+                      }
+                      val opacityLabel = TextView(this).apply { text = "Background opacity: ${(prefs.hudOpacity * 100).roundToInt()}%" }
+                      val opacityBar = SeekBar(this).apply {
+                          max = 100
+                          progress = (prefs.hudOpacity * 100f).roundToInt()
+                          setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                              override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
+                                  if (fromUser) { applyHudBackgroundOpacity(value / 100f); opacityLabel.text = "Background opacity: ${(prefs.hudOpacity * 100).roundToInt()}%" }
                               }
                               override fun onStartTrackingTouch(bar: SeekBar) = Unit
                               override fun onStopTrackingTouch(bar: SeekBar) = Unit
@@ -830,12 +861,13 @@ jobs:
                           }
                       }
                       panel.addView(sizeLabel); panel.addView(sizeBar)
+                      panel.addView(scaleLabel); panel.addView(scaleBar)
                       panel.addView(opacityLabel); panel.addView(opacityBar); panel.addView(colorPicker)
                       AlertDialog.Builder(this).setTitle("Customize HUD").setView(panel)
                           .setPositiveButton(android.R.string.ok, null).show()
                       true
                   }''')
-          if "Customize HUD" not in gs or "prefs.hudTextSize" not in gs:
+          if "Customize HUD" not in gs or "prefs.hudTextSize" not in gs or "applyHudScale" not in gs or "Background opacity" not in gs:
               raise SystemExit("HUD customization insertion failed")
           game.write_text(gs)
 
