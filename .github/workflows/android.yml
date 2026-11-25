@@ -904,7 +904,7 @@ jobs:
           # Add swipe recognition before dispatching to the game controls. A swipe from either
           # edge opens the same panel on the LEFT; a leftward swipe over the panel closes it.
           old_dispatch = '''    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-          if (touchHiddenByPad'''
+        if (touchHiddenByPad'''
           new_dispatch = '''    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
           val edge = pad(28).toFloat()
           when (event.actionMasked) {
