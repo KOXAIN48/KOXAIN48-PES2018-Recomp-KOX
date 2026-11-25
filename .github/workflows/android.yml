@@ -30,6 +30,7 @@ jobs:
           mkdir -p upstream/android/app/src/test/java/com/koxain/patchmanager
           cp kox-patch-manager/DpFileListComposer.kt upstream/android/app/src/main/java/com/koxain/patchmanager/
           cp kox-patch-manager/MultiPatchInstaller.kt upstream/android/app/src/main/java/com/koxain/patchmanager/
+          cp kox-patch-manager/MultiPatchActivity.kt upstream/android/app/src/main/java/com/pes2017/recomp/
           cp kox-patch-manager/DpFileListComposerTest.kt upstream/android/app/src/test/java/com/koxain/patchmanager/
           cp kox-patch-manager/MultiPatchInstallerTest.kt upstream/android/app/src/test/java/com/koxain/patchmanager/
 
@@ -1098,6 +1099,56 @@ jobs:
           if not all(checks.values()):
               raise SystemExit("KOX patch verification failed")
           PY
+      - name: Wire KOX Multi-Patch screen into PATCHES
+        working-directory: upstream
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          xml = manifest.read_text()
+          activity_anchor = '        <!-- The import wizard: source, scan, peak space, progress, result. -->'
+          activity_block = '''        <activity
+                      android:name=".MultiPatchActivity"
+                      android:exported="false"
+                      android:parentActivityName=".PatchesActivity"
+                      android:screenOrientation="fullUser" />
+
+          '''
+          if xml.count(activity_anchor) != 1:
+              raise SystemExit("Multi-Patch manifest insertion anchor mismatch")
+          xml = xml.replace(activity_anchor, activity_block + activity_anchor)
+          manifest.write_text(xml)
+
+          activity = Path("android/app/src/main/java/com/pes2017/recomp/PatchesActivity.kt")
+          source = activity.read_text()
+          anchor = '''        selectFolder.setOnClickListener {
+                      folderPicker.launch(Intent(this, GameFolderActivity::class.java))
+                  }
+          '''
+          block = anchor + '''        val multiPatchButton = Button(this).apply {
+                      text = "MANAGE MULTI-PATCH"
+                      setOnClickListener {
+                          startActivity(Intent(this@PatchesActivity, MultiPatchActivity::class.java))
+                      }
+                  }
+                  (selectFolder.parent as? android.view.ViewGroup)?.let { parent ->
+                      val position = parent.indexOfChild(selectFolder)
+                      parent.addView(
+                          multiPatchButton,
+                          position + 1,
+                          android.view.ViewGroup.LayoutParams(
+                              android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                              android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                          ),
+                      )
+                  }
+          '''
+          if source.count(anchor) != 1:
+              raise SystemExit("Multi-Patch button insertion anchor mismatch")
+          activity.write_text(source.replace(anchor, block))
+          print("KOX Multi-Patch screen registered and linked from PATCHES.")
+          PY
+
       - name: Recompile PES2018 XEX and build native ARM64 library
         working-directory: upstream
         env:
