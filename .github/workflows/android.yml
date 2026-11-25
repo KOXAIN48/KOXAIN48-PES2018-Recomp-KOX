@@ -3,7 +3,7 @@ name: KOX PES2018 Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ main, kox-live-controls-development ]
 
 permissions:
   contents: read
@@ -113,25 +113,10 @@ jobs:
           if "limit >= kConsole" not in frame_rate or "com_maxfps" not in frame_rate:
               raise SystemExit("Native FPS pacing support verification failed")
 
-          # Read the FPS target live; reset the pacing deadline when the target changes.
+                    # Keep upstream frame pacing unchanged; the injected live-deadline reset regressed replay transitions.
           frame_rate = Path("runtime/frame_rate.h").read_text()
-          old_limit = 'static const uint32_t limit = uint32_t(std::min<uint64_t>(env::Number("PES17_FPS_LIMIT", kConsole), 1000));'
-          new_limit = 'const uint32_t limit = uint32_t(std::min<uint64_t>(env::Number("PES17_FPS_LIMIT", kConsole), 1000));'
-          if frame_rate.count(old_limit) != 1:
-              raise SystemExit("Live FPS limit patch anchor mismatch")
-          frame_rate = frame_rate.replace(old_limit, new_limit)
-          old_pace = """        static clock::time_point next{};
-                  const auto now = clock::now();
-                  const auto period = std::chrono::microseconds(1000000 / limit);"""
-          new_pace = """        static clock::time_point next{};
-                  static uint32_t previousLimit = ~0u;
-                  const auto now = clock::now();
-                  if (previousLimit != limit) { next = now; previousLimit = limit; }
-                  const auto period = std::chrono::microseconds(1000000 / limit);"""
-          if frame_rate.count(old_pace) != 1:
-              raise SystemExit("FPS pacing recovery patch anchor mismatch")
-          frame_rate = frame_rate.replace(old_pace, new_pace)
-          Path("runtime/frame_rate.h").write_text(frame_rate)
+          if "static const uint32_t limit" not in frame_rate or "previousLimit" in frame_rate:
+              raise SystemExit("Stable upstream FPS pacing verification failed")
 
           # Extend the texture-memory slider to 12 GB (96 x 128 MB).
           root = Path(".")
