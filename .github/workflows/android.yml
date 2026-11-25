@@ -1,6 +1,6 @@
 name: KOX PES2018 Android APK
 
-on:
+'on':
   workflow_dispatch:
   push:
     branches: [ main, kox-live-controls-development ]
@@ -1071,7 +1071,7 @@ jobs:
               "Frame Limit slider to 120": "R.id.fps_limit_label, 18," in settings.read_text(),
               "Frame Limit preference range": ".coerceIn(30, 120)" in prefs.read_text(),
               "Frame Limit native dispatch": "else -> prefs.fpsLimit.toString()" in game.read_text(),
-          "Live FPS reads runtime option": "return uint32_t(std::min<uint64_t>(env::Number(\"PES17_FPS_LIMIT\", kConsole), 1000));" in (root / "runtime/frame_rate.h").read_text(),
+              "Live FPS reads runtime option": "return uint32_t(std::min<uint64_t>(env::Number(\"PES17_FPS_LIMIT\", kConsole), 1000));" in (root / "runtime/frame_rate.h").read_text(),
               "Live aspect reads runtime option": 'const double aspect = env::Real("PES17_ASPECT");' in (root / "runtime/gpu/vulkan/presenter.cpp").read_text(),
               "Quick Graphics text contrast": "setTextColor(Color.rgb(10, 27, 69))" in (root / "android/app/src/main/java/com/pes2017/recomp/QuickGraphics.kt").read_text(),
               "Quick Graphics 120 FPS range": "max = 18" in (root / "android/app/src/main/java/com/pes2017/recomp/QuickGraphics.kt").read_text(),
