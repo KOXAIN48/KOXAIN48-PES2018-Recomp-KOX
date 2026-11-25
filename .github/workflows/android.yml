@@ -653,8 +653,8 @@ jobs:
           qs = quick.read_text()
           qs = qs.replace("var preset: String,", "var preset: String, var aspect: Float,")
           qs = qs.replace("prefs.heatScale, prefs.loadScale, prefs.crowd, prefs.lowMemory, prefs.preset,", "prefs.heatScale, prefs.loadScale, prefs.crowd, prefs.lowMemory, prefs.preset, prefs.aspectRatio,")
-          qs = qs.replace('        val fpsText = label("")', '        val fpsText = label("")\\n        val aspectText = label("")\\n        val aspect = SeekBar(activity).apply { max = 102 }')
-          qs = qs.replace('            scaleText.text = activity.getString(R.string.qg_scale, v.scale)', '            scaleText.text = activity.getString(R.string.qg_scale, v.scale)\\n            aspectText.text = "Live Aspect Ratio: %.2f".format(v.aspect)\\n            aspect.progress = ((v.aspect - 1.78f) * 100f).roundToInt().coerceIn(0, 102)')
+          qs = qs.replace('        val fpsText = label("")', '        val fpsText = label("")\n        val aspectText = label("")\n        val aspect = SeekBar(activity).apply { max = 102 }')
+          qs = qs.replace('            scaleText.text = activity.getString(R.string.qg_scale, v.scale)', '            scaleText.text = activity.getString(R.string.qg_scale, v.scale)\n            aspectText.text = "Live Aspect Ratio: %.2f".format(v.aspect)\n            aspect.progress = ((v.aspect - 1.78f) * 100f).roundToInt().coerceIn(0, 102)')
           qs = qs.replace('        fun touched() { if (!quiet)', '''        aspect.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
               override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
                   if (!fromUser) return
@@ -685,7 +685,7 @@ jobs:
           if qs.count(old_scene_line) != 1:
               raise SystemExit("Live scene slider callback anchor mismatch")
           qs = qs.replace(old_scene_line, new_scene_line)
-          qs = qs.replace('        column.addView(fpsText); column.addView(fps)', '        column.addView(fpsText); column.addView(fps)\\n        column.addView(aspectText); column.addView(aspect)')
+          qs = qs.replace('        column.addView(fpsText); column.addView(fps)', '        column.addView(fpsText); column.addView(fps)\n        column.addView(aspectText); column.addView(aspect)')
           quick.write_text(qs)
 
           # Persist aspect ratio and set it before the native runtime starts.
@@ -700,7 +700,7 @@ jobs:
           ''' + anchor_prop)
           key_anchor = '        private const val KEY_HUD_X = "hudOffsetX"'
           if ps.count(key_anchor) != 1: raise SystemExit("Aspect preference key anchor mismatch")
-          ps = ps.replace(key_anchor, '        private const val KEY_ASPECT_RATIO = "aspectRatio"\\n' + key_anchor)
+          ps = ps.replace(key_anchor, '        private const val KEY_ASPECT_RATIO = "aspectRatio"\n' + key_anchor)
           prefs.write_text(ps)
 
           # Renderer frame-boundary code needs the live frame-rate accessor.
