@@ -247,12 +247,23 @@ class MultiPatchActivity : AppCompatActivity() {
                 setPadding(0, dp(3), 0, dp(6))
             })
             cpkFiles.forEach { cpk ->
-                card.addView(TextView(this).apply {
-                    text = "• ${cpk.name}  (${android.text.format.Formatter.formatFileSize(this@MultiPatchActivity, cpk.length())})"
+                val relativePath = cpk.relativeTo(source.directory).invariantSeparatorsPath
+                val selectionKey = "selected:${source.id}:$relativePath"
+                val selectedByDefault = getSharedPreferences("kox_multi_patch", MODE_PRIVATE)
+                    .getBoolean(selectionKey, true)
+                val check = CheckBox(this).apply {
+                    text = "${cpk.name}  (${android.text.format.Formatter.formatFileSize(this@MultiPatchActivity, cpk.length())})"
                     textSize = 11f
                     setTextColor(0xFFE2E8F0.toInt())
+                    buttonTintList = android.content.res.ColorStateList.valueOf(0xFF38BDF8.toInt())
+                    isChecked = selectedByDefault
                     setPadding(dp(4), dp(2), 0, dp(2))
-                })
+                    setOnCheckedChangeListener { _, checked ->
+                        getSharedPreferences("kox_multi_patch", MODE_PRIVATE)
+                            .edit().putBoolean(selectionKey, checked).apply()
+                    }
+                }
+                card.addView(check)
             }
             card.addView(TextView(this).apply {
                 text = source.directory.absolutePath
@@ -268,6 +279,18 @@ class MultiPatchActivity : AppCompatActivity() {
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
             ).apply { bottomMargin = dp(8) })
         }
+    }
+
+    private fun selectedCpkPaths(source: SavedSource): Set<String> {
+        val prefs = getSharedPreferences("kox_multi_patch", MODE_PRIVATE)
+        return source.directory.walkTopDown()
+            .filter { it.isFile && it.extension.equals("cpk", ignoreCase = true) }
+            .filter { file ->
+                val relativePath = file.relativeTo(source.directory).invariantSeparatorsPath
+                prefs.getBoolean("selected:${source.id}:$relativePath", true)
+            }
+            .map { it.relativeTo(source.directory).invariantSeparatorsPath }
+            .toSet()
     }
 
     private fun loadSources() {
