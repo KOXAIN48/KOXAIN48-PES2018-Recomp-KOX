@@ -590,7 +590,65 @@ jobs:
           gs = gs.replace(old_bg, new_bg)
           game.write_text(gs)
 
-                    # Verify all KOX patches are present before compiling.
+                    # Live camera aspect: update the guest camera globals on the GPU swap thread.
+          gpu = root / "runtime/gpu/gpu.cpp"
+          g = gpu.read_text()
+          if '#include "../env.h"' not in g:
+              g = g.replace('#include "../guest.h"', '#include "../guest.h"\\n#include "../env.h"')
+          old_swap = 'void gpu::Swap() { g.frames++; }'
+          new_swap = '''void gpu::Swap()
+          {
+              g.frames++;
+              // The swap callback runs on the guest-facing GPU thread. Only replace
+              // the known stock value or the value last written by this patch.
+              const double asked = env::Real("PES17_ASPECT", 16.0 / 9.0);
+              const float aspect = float(std::clamp(asked, 1.0, 3.0));
+              uint32_t bits = 0;
+              std::memcpy(&bits, &aspect, sizeof(bits));
+              static uint32_t previous = 0x3FE38E39u;
+              for (uint32_t address : { T_DATA_Aspect16x9, T_DATA_Aspect16x9b })
+              {
+                  be32* word = GuestPtr<be32>(address);
+                  if (!word) continue;
+                  const uint32_t current = uint32_t(*word);
+                  if (current == 0x3FE38E39u || current == previous)
+                      *word = bits;
+              }
+              previous = bits;
+          }'''
+          if g.count(old_swap) != 1:
+              raise SystemExit("Live camera aspect patch guard failed")
+          gpu.write_text(g.replace(old_swap, new_swap))
+
+          # Manual internal scene scale is sampled at a renderer frame boundary;
+          # rebuilding render targets is delegated to the existing safe path.
+          frame = root / "runtime/gpu/vulkan/renderer_frame.cpp"
+          fs = frame.read_text()
+          if '#include "../../env.h"' not in fs:
+              fs = fs.replace('#include "../../log.h"', '#include "../../log.h"\\n#include "../../env.h"')
+          marker = "        if (worldDrawn) ApplySceneScale();"
+          live = '''        // Manual render scale can change during gameplay. Reconfigure the existing
+              // controller at the frame boundary; ApplySceneScale retires/rebuilds targets.
+              const double manualScale = std::clamp(env::Real("PES17_SCENE_SCALE", g.sceneScale), 0.5, 1.0);
+              const float requestedScale = float(std::round(manualScale * 16.0) / 16.0);
+              if (std::abs(requestedScale - g.dynScale.Current() / 16.0f) > 0.001f)
+              {
+                  const uint32_t limit = frame_rate::Limit();
+                  const double period = 1000.0 / double(limit ? std::min(limit, 240u) : 60u);
+                  g.heatScale = false;
+                  g.loadScale = false;
+                  g.dynamicScale = true;
+                  const int step = int(std::lround(requestedScale * 16.0f));
+                  g.dynScale.Configure(step, step, period * 0.78);
+                  g.dynScale.SetRules(false, false);
+              }
+              if (worldDrawn) ApplySceneScale();'''
+          if fs.count(marker) != 1:
+              raise SystemExit("Live internal render-scale frame anchor mismatch")
+          fs = fs.replace(marker, live)
+          frame.write_text(fs)
+
+          # Verify all KOX patches are present before compiling.
           checks = {
               "Dynamic scaling disabled for render-bug isolation": "heatScale = false, loadScale = false" in (root / "android/app/src/main/java/com/pes2017/recomp/DeviceProfile.kt").read_text(),
               "12 GB texture range": "R.id.texture_label, 96," in settings.read_text() and ".coerceIn(1, 96)" in settings.read_text(),
