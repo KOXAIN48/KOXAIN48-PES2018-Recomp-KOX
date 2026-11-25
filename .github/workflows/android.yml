@@ -648,6 +648,76 @@ jobs:
           fs = fs.replace(marker, live)
           frame.write_text(fs)
 
+          # Wire the live aspect and render-scale controls into the in-game panel.
+          quick = root / "android/app/src/main/java/com/pes2017/recomp/QuickGraphics.kt"
+          qs = quick.read_text()
+          qs = qs.replace("var preset: String,", "var preset: String, var aspect: Float,")
+          qs = qs.replace("prefs.heatScale, prefs.loadScale, prefs.crowd, prefs.lowMemory, prefs.preset,", "prefs.heatScale, prefs.loadScale, prefs.crowd, prefs.lowMemory, prefs.preset, prefs.aspectRatio,")
+          qs = qs.replace('        val fpsText = label("")', '        val fpsText = label("")\\n        val aspectText = label("")\\n        val aspect = SeekBar(activity).apply { max = 102 }')
+          qs = qs.replace('            scaleText.text = activity.getString(R.string.qg_scale, v.scale)', '            scaleText.text = activity.getString(R.string.qg_scale, v.scale)\\n            aspectText.text = "Live Aspect Ratio: %.2f".format(v.aspect)\\n            aspect.progress = ((v.aspect - 1.78f) * 100f).roundToInt().coerceIn(0, 102)')
+          qs = qs.replace('        fun touched() { if (!quiet)', '''        aspect.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+              override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
+                  if (!fromUser) return
+                  v.aspect = 1.78f + value / 100f
+                  prefs.aspectRatio = v.aspect
+                  NativeBridge.nativeSetOption("PES17_ASPECT", v.aspect.toString())
+                  aspectText.text = "Live Aspect Ratio: %.2f".format(v.aspect)
+              }
+              override fun onStartTrackingTouch(bar: SeekBar) = Unit
+              override fun onStopTrackingTouch(bar: SeekBar) = Unit
+          })
+          scene.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+              override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
+                  if (!fromUser) return
+                  v.scene = 50 + value * 5
+                  prefs.sceneScalePercent = v.scene
+                  NativeBridge.nativeSetOption("PES17_SCENE_SCALE", (v.scene / 100f).toString())
+                  sceneText.text = activity.getString(R.string.qg_scene, v.scene)
+                  touched()
+              }
+              override fun onStartTrackingTouch(bar: SeekBar) = Unit
+              override fun onStopTrackingTouch(bar: SeekBar) = Unit
+          })
+          fun touched() { if (!quiet)''')
+          # Remove the original scene listener, replaced above.
+          old_scene_listener = '''        scene.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+              override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
+                  if (!fromUser) return
+                  v.scene = 50 + value * 5; sceneText.text = activity.getString(R.string.qg_scene, v.scene); touched()
+              }
+              override fun onStartTrackingTouch(bar: SeekBar) = Unit
+              override fun onStopTrackingTouch(bar: SeekBar) = Unit
+          })
+          '''
+          if qs.count(old_scene_listener) != 1:
+              raise SystemExit("Scene slider replacement guard failed")
+          qs = qs.replace(old_scene_listener, "")
+          qs = qs.replace('        column.addView(fpsText); column.addView(fps)', '        column.addView(fpsText); column.addView(fps)\\n        column.addView(aspectText); column.addView(aspect)')
+          qs = qs.replace('            prefs.sceneScalePercent = intent.getIntExtra(X_SCENE, prefs.sceneScalePercent)', '            prefs.sceneScalePercent = intent.getIntExtra(X_SCENE, prefs.sceneScalePercent)')
+          quick.write_text(qs)
+
+          # Persist aspect ratio and set it before the native runtime starts.
+          prefs = root / "android/app/src/main/java/com/pes2017/recomp/Prefs.kt"
+          ps = prefs.read_text()
+          anchor_prop = "    /** HUD position offsets in dp, saved across matches. */"
+          if ps.count(anchor_prop) != 1: raise SystemExit("Aspect preference insertion anchor mismatch")
+          ps = ps.replace(anchor_prop, '''    var aspectRatio: Float
+                  get() = store.getFloat(KEY_ASPECT_RATIO, 1.78f).coerceIn(1.78f, 2.80f)
+                  set(value) = store.edit().putFloat(KEY_ASPECT_RATIO, value.coerceIn(1.78f, 2.80f)).apply()
+
+          ''' + anchor_prop)
+          key_anchor = '        private const val KEY_HUD_X = "hudOffsetX"'
+          if ps.count(key_anchor) != 1: raise SystemExit("Aspect preference key anchor mismatch")
+          ps = ps.replace(key_anchor, '        private const val KEY_ASPECT_RATIO = "aspectRatio"\\n' + key_anchor)
+          prefs.write_text(ps)
+
+          # Renderer frame-boundary code needs the live frame-rate accessor.
+          frame = root / "runtime/gpu/vulkan/renderer_frame.cpp"
+          fs = frame.read_text()
+          if '#include "../../frame_rate.h"' not in fs:
+              fs = fs.replace('#include "../../env.h"', '#include "../../env.h"\\n#include "../../frame_rate.h"\\n#include <cmath>')
+          frame.write_text(fs)
+
           # Verify all KOX patches are present before compiling.
           checks = {
               "Dynamic scaling disabled for render-bug isolation": "heatScale = false, loadScale = false" in (root / "android/app/src/main/java/com/pes2017/recomp/DeviceProfile.kt").read_text(),
