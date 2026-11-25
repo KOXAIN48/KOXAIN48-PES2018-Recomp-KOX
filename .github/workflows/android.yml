@@ -404,6 +404,14 @@ jobs:
 
           '''
           ss = ss.replace(anchor, method + anchor)
+          ss = ss.replace('text = "Display Resolution: "', 'text = "Output Resolution: "')
+          ss = ss.replace('.setTitle("Display Resolution")', '.setTitle("Output Resolution")')
+          ss = ss.replace(
+              '.setMessage("Game output surface only; Android system resolution is unchanged. 16:9 is fitted with side bars when needed. Restart the match to apply.")',
+              '.setMessage("Changes the Vulkan output buffer, not the Android screen or the game scene resolution. The game scene remains 1280×720 at 1×; use Internal Render to change rendering detail. Restart the match to apply.")'
+          )
+          if "game scene remains 1280×720 at 1×" not in ss:
+              raise SystemExit("Output resolution explanation patch failed")
           settings.write_text(ss)
 
           game = root / "android/app/src/main/java/com/pes2017/recomp/GameActivity.kt"
@@ -444,6 +452,11 @@ jobs:
           gs, end_count = re.subn(old_end_pattern, lambda _: new_end, gs)
           if end_count != 1:
               raise SystemExit(f"Display viewport fitting patch mismatch: {end_count}")
+          old_hud = 'append("  Internal Render: ${resW}×${resH}  •  Refresh: ${refreshHz().roundToInt()} Hz\\n")'
+          new_hud = 'append("  Surface Buffer: ${resW}×${resH}  •  Refresh: ${refreshHz().roundToInt()} Hz\\n")'
+          if gs.count(old_hud) != 1:
+              raise SystemExit("Surface buffer diagnostic anchor mismatch")
+          gs = gs.replace(old_hud, new_hud)
           game.write_text(gs)
 
           # Explicit contrast for all text and action buttons in the in-game quick graphics dialog.
@@ -498,6 +511,8 @@ jobs:
               "Display resolution preferences": "var displayResolutionWidth: Int" in prefs.read_text() and "var displayResolutionHeight: Int" in prefs.read_text(),
               "Display resolution presets and custom fields": "7680 to 4320" in settings.read_text() and "Custom width" in settings.read_text() and "Custom height" in settings.read_text(),
               "Surface uses selected dimensions": "prefs.displayResolutionWidth" in game.read_text() and "prefs.displayResolutionHeight" in game.read_text(),
+              "Output resolution explanation": "game scene remains 1280×720 at 1×" in settings.read_text(),
+              "HUD reports surface buffer honestly": "Surface Buffer:" in game.read_text() and "Internal Render:" not in game.read_text(),
               "Aspect ratio fit": "availableRatio > ratio" in game.read_text(),
               "Quick Graphics dialog title and buttons contrast": "androidx.appcompat.R.id.alertTitle" in (root / "android/app/src/main/java/com/pes2017/recomp/QuickGraphics.kt").read_text(),
           }
@@ -528,8 +543,8 @@ jobs:
         working-directory: upstream/android
         env:
           PES17_VERSION_NAME: 0.3.2-kox
-          PES17_VERSION_CODE: '28'
-          PES17_BUILD_SHA: kox-display-resolution-black-text-fix
+          PES17_VERSION_CODE: '29'
+          PES17_BUILD_SHA: kox-output-resolution-diagnostics
           PES17_BUILD_STAMP: ${{ github.run_number }}
           PES17_NDK_VERSION: 28.2.13676358
           PES17_NATIVE_OPTIMISATION: -O2
