@@ -261,7 +261,7 @@ jobs:
           qs = qs.replace(old_switch, new_switch)
           qs = qs.replace('val fps = SeekBar(activity).apply { max = 6 }', 'val fps = SeekBar(activity).apply { max = 18 }')
           qs = qs.replace('fps.progress = (v.fps - 30) / 5', 'fps.progress = ((v.fps - 30) / 5).coerceIn(0, 18)')
-          qs = qs.replace('v.fps = 30 + value * 5; fpsText.text', 'v.fps = 30 + value * 5; fpsText.text')
+          qs = qs.replace('v.fps = 30 + value * 5; fpsText.text', 'v.fps = 30 + value * 5; prefs.fpsLimit = v.fps; NativeBridge.nativeSetOption("PES17_FPS_LIMIT", v.fps.toString()); fpsText.text')
           old_note = 'setText(R.string.qg_note); textSize = 11f; alpha = 0.7f; setPadding(0, px(10), 0, 0)'
           new_note = 'setText(R.string.qg_note); textSize = 11f; setTextColor(Color.rgb(0, 0, 0)); alpha = 1f; setPadding(0, px(10), 0, 0)'
           if qs.count(old_note) != 1:
