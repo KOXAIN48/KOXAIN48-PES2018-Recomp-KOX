@@ -105,14 +105,6 @@ object DpFileListComposer {
      * then swaps the new file into place. Existing output is never truncated
      * before the backup and generated file have both been verified.
      */
-    fun writeWithBackup(output: File, backup: File): Result {
-        val names = output.readLinesIfText()
-        require(names.isNotEmpty()) {
-            "Use writeWithBackup(output, backup, names) when generating a new list."
-        }
-        return writeWithBackup(output, backup, names)
-    }
-
     fun writeWithBackup(output: File, backup: File, highestPriorityFirst: List<String>): Result {
         val result = compose(highestPriorityFirst)
         val parent = output.absoluteFile.parentFile
@@ -161,6 +153,4 @@ object DpFileListComposer {
             ((bytes[offset + 1].toInt() and 0xFF) shl 16) or
             ((bytes[offset + 2].toInt() and 0xFF) shl 8) or
             (bytes[offset + 3].toInt() and 0xFF)
-
-    private fun File.readLinesIfText(): List<String> = emptyList()
 }
