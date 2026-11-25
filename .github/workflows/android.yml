@@ -70,10 +70,23 @@ jobs:
           p = Path("android/app/src/main/java/com/pes2017/recomp/DeviceProfile.kt")
           s = p.read_text()
           old = "Tier.MEDIUM -> Preset(75, multisampling = true, fsr = true, fpsLimit = 60, lowMemory = false, heatScale = true, loadScale = false)"
-          new = "Tier.MEDIUM -> Preset(75, multisampling = true, fsr = true, fpsLimit = 60, lowMemory = false, heatScale = false, loadScale = false)"
+          new = "Tier.MEDIUM -> Preset(75, multisampling = true, fsr = true, fpsLimit = 60, lowMemory = false, heatScale = false, loadScale = true)"
           if s.count(old) != 1:
               raise SystemExit("Patch guard failed: expected exactly one Medium preset line")
           p.write_text(s.replace(old, new))
+
+          # Faster GPU-load recovery after transient camera-heavy scenes.
+          dyn = Path("runtime/gpu/vulkan/dynamic_scale.h")
+          ds = dyn.read_text()
+          for before, after, label in [
+              ("static constexpr int kWindow = 90;", "static constexpr int kWindow = 45;", "decision window"),
+              ("static constexpr int kCooldownWindows = 2;", "static constexpr int kCooldownWindows = 1;", "cooldown"),
+              ("static constexpr int kUpWindows = 3;", "static constexpr int kUpWindows = 1;", "recovery windows"),
+          ]:
+              if ds.count(before) != 1:
+                  raise SystemExit(f"Dynamic-scale {label} patch anchor mismatch")
+              ds = ds.replace(before, after)
+          dyn.write_text(ds)
 
           # Extend Frame Limit from 30-60 to 30-120 FPS in 5 FPS steps.
           prefs = Path("android/app/src/main/java/com/pes2017/recomp/Prefs.kt")
@@ -810,7 +823,7 @@ jobs:
 
           # Verify all KOX patches are present before compiling.
           checks = {
-              "Dynamic scaling disabled for render-bug isolation": "heatScale = false, loadScale = false" in (root / "android/app/src/main/java/com/pes2017/recomp/DeviceProfile.kt").read_text(),
+              "GPU-load scaling enabled with fast recovery": "heatScale = false, loadScale = true" in (root / "android/app/src/main/java/com/pes2017/recomp/DeviceProfile.kt").read_text(),
               "12 GB texture range": "R.id.texture_label, 96," in settings.read_text() and ".coerceIn(1, 96)" in settings.read_text(),
               "refresh rate preference": "var displayRefreshRate: Int" in prefs.read_text(),
               "refresh rate selector": "Lock Display Refresh Rate" in settings.read_text(),
