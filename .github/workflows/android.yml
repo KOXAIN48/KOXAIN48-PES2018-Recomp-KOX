@@ -3,7 +3,7 @@ name: KOX PES2018 Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [ main, kox-live-controls-development ]
+    branches: [ main ]
 
 permissions:
   contents: read
@@ -112,6 +112,26 @@ jobs:
           frame_rate = Path("runtime/frame_rate.h").read_text()
           if "limit >= kConsole" not in frame_rate or "com_maxfps" not in frame_rate:
               raise SystemExit("Native FPS pacing support verification failed")
+
+          # Read the FPS target live; reset the pacing deadline when the target changes.
+          frame_rate = Path("runtime/frame_rate.h").read_text()
+          old_limit = 'static const uint32_t limit = uint32_t(std::min<uint64_t>(env::Number("PES17_FPS_LIMIT", kConsole), 1000));'
+          new_limit = 'const uint32_t limit = uint32_t(std::min<uint64_t>(env::Number("PES17_FPS_LIMIT", kConsole), 1000));'
+          if frame_rate.count(old_limit) != 1:
+              raise SystemExit("Live FPS limit patch anchor mismatch")
+          frame_rate = frame_rate.replace(old_limit, new_limit)
+          old_pace = """        static clock::time_point next{};
+                  const auto now = clock::now();
+                  const auto period = std::chrono::microseconds(1000000 / limit);"""
+          new_pace = """        static clock::time_point next{};
+                  static uint32_t previousLimit = UINT32_MAX;
+                  const auto now = clock::now();
+                  if (previousLimit != limit) { next = now; previousLimit = limit; }
+                  const auto period = std::chrono::microseconds(1000000 / limit);"""
+          if frame_rate.count(old_pace) != 1:
+              raise SystemExit("FPS pacing recovery patch anchor mismatch")
+          frame_rate = frame_rate.replace(old_pace, new_pace)
+          Path("runtime/frame_rate.h").write_text(frame_rate)
 
           # Extend the texture-memory slider to 12 GB (96 x 128 MB).
           root = Path(".")
@@ -264,8 +284,8 @@ jobs:
           qs = qs.replace('v.fps = 30 + value * 5; fpsText.text', 'v.fps = 30 + value * 5; prefs.fpsLimit = v.fps; NativeBridge.nativeSetOption("PES17_FPS_LIMIT", v.fps.toString()); fpsText.text')
           # Put HUD color selection directly in the in-game Graphics & Performance menu.
           color_anchor = '        val fpsText = label("")'
-          color_block = '''        val hudColorNames = listOf("Dark", "Blue", "Purple", "Green")
-                  val hudColorValues = listOf("#D70F172A", "#D71E3A5F", "#D72B1B3A", "#D71B4332")
+          color_block = '''        val hudColorNames = listOf("Black", "White", "Gray", "Silver", "Red", "Crimson", "Pink", "Orange", "Amber", "Yellow", "Gold", "Lime", "Green", "Mint", "Cyan", "Sky Blue", "Blue", "Navy", "Purple", "Violet", "Magenta", "Brown")
+                  val hudColorValues = listOf("#D70B0B0B", "#D7FFFFFF", "#D7666666", "#D7BFC7D5", "#D7E53935", "#D7A31525", "#D7EC407A", "#D7FB8C00", "#D7FFB300", "#D7FDD835", "#D7D4AF37", "#D7AEEA00", "#D743A047", "#D74DB6AC", "#D700BCD4", "#D703A9F4", "#D72196F3", "#D7153A73", "#D78E44AD", "#D76A1B9A", "#D7D81B60", "#D7794A2A")
                   val hudColorPicker = android.widget.Spinner(activity).apply {
                       adapter = android.widget.ArrayAdapter(activity, android.R.layout.simple_spinner_dropdown_item, hudColorNames)
                       setSelection(hudColorValues.indexOf(prefs.hudColor).coerceAtLeast(0))
@@ -734,7 +754,7 @@ jobs:
                   set(value) = store.edit().putFloat(KEY_HUD_OPACITY, value.coerceIn(0.25f, 1f)).apply()
               var hudColor: String
                   get() = store.getString(KEY_HUD_COLOR, "#D70F172A") ?: "#D70F172A"
-                  set(value) = store.edit().putString(KEY_HUD_COLOR, value.takeIf { it in setOf("#D70F172A", "#D71E3A5F", "#D72B1B3A", "#D71B4332") } ?: "#D70F172A").apply()
+                  set(value) = store.edit().putString(KEY_HUD_COLOR, value.takeIf { it in setOf("#D70B0B0B", "#D7FFFFFF", "#D7666666", "#D7BFC7D5", "#D7E53935", "#D7A31525", "#D7EC407A", "#D7FB8C00", "#D7FFB300", "#D7FDD835", "#D7D4AF37", "#D7AEEA00", "#D743A047", "#D74DB6AC", "#D700BCD4", "#D703A9F4", "#D72196F3", "#D7153A73", "#D78E44AD", "#D76A1B9A", "#D7D81B60", "#D7794A2A") } ?: "#D70B0B0B").apply()
 
           ''' + hud_anchor)
           key = '        private const val KEY_HUD_X = "hudOffsetX"'
@@ -780,8 +800,8 @@ jobs:
                               override fun onStopTrackingTouch(bar: SeekBar) = Unit
                           })
                       }
-                      val colors = listOf("Dark", "Blue", "Purple", "Green")
-                      val values = listOf("#D70F172A", "#D71E3A5F", "#D72B1B3A", "#D71B4332")
+                      val colors = listOf("Black", "White", "Gray", "Silver", "Red", "Crimson", "Pink", "Orange", "Amber", "Yellow", "Gold", "Lime", "Green", "Mint", "Cyan", "Sky Blue", "Blue", "Navy", "Purple", "Violet", "Magenta", "Brown")
+                      val values = listOf("#D70B0B0B", "#D7FFFFFF", "#D7666666", "#D7BFC7D5", "#D7E53935", "#D7A31525", "#D7EC407A", "#D7FB8C00", "#D7FFB300", "#D7FDD835", "#D7D4AF37", "#D7AEEA00", "#D743A047", "#D74DB6AC", "#D700BCD4", "#D703A9F4", "#D72196F3", "#D7153A73", "#D78E44AD", "#D76A1B9A", "#D7D81B60", "#D7794A2A")
                       val colorPicker = android.widget.Spinner(this).apply {
                           adapter = android.widget.ArrayAdapter(this@GameActivity, android.R.layout.simple_spinner_dropdown_item, colors)
                           setSelection(values.indexOf(prefs.hudColor).coerceAtLeast(0))
