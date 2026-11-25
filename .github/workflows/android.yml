@@ -875,6 +875,191 @@ jobs:
               raise SystemExit("HUD customization insertion failed")
           game.write_text(gs)
 
+          # KOX edge-swipe sidebar: either screen edge opens the same left-anchored panel.
+          game = root / "android/app/src/main/java/com/pes2017/recomp/GameActivity.kt"
+          gs = game.read_text()
+          field_anchor = "    private lateinit var menuButton: View"
+          if gs.count(field_anchor) != 1: raise SystemExit("Sidebar field anchor mismatch")
+          gs = gs.replace(field_anchor, field_anchor + """
+              private var koxSidebar: LinearLayout? = null
+              private var edgeGestureDownX = 0f
+              private var edgeGestureDownY = 0f
+              private var edgeGestureTracking = false
+              private var edgeGestureConsumed = false
+          """)
+          # The old hamburger remains only as a hidden compatibility view; no visible handle remains.
+          gs = gs.replace('''            setOnClickListener { showMenu() }
+          }
+          root.addView(''', '''            visibility = View.GONE
+            isClickable = false
+          }
+          root.addView(''', 1)
+          # Bold FPS text; changing textSize naturally remeasures the wrap-content pill background.
+          gs = gs.replace('        statsText.typeface = Typeface.MONOSPACE',
+                          '        statsText.typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)')
+          gs = gs.replace('''        statsText.textSize = prefs.hudTextSize
+          statsText.typeface = Typeface.MONOSPACE''',
+                          '''        statsText.textSize = prefs.hudTextSize
+          statsText.typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)''')
+          # Add swipe recognition before dispatching to the game controls. A swipe from either
+          # edge opens the same panel on the LEFT; a leftward swipe over the panel closes it.
+          old_dispatch = '''    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+          if (touchHiddenByPad'''
+          new_dispatch = '''    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+          val edge = pad(28).toFloat()
+          when (event.actionMasked) {
+              MotionEvent.ACTION_DOWN -> {
+                  edgeGestureDownX = event.x
+                  edgeGestureDownY = event.y
+                  edgeGestureTracking = !overlay.editing &&
+                      (event.x <= edge || event.x >= root.width - edge ||
+                       (koxSidebar?.visibility == View.VISIBLE && event.x <= pad(320)))
+                  edgeGestureConsumed = false
+              }
+              MotionEvent.ACTION_MOVE -> {
+                  if (edgeGestureTracking && !edgeGestureConsumed) {
+                      val dx = event.x - edgeGestureDownX
+                      val dy = event.y - edgeGestureDownY
+                      if (koxSidebar?.visibility == View.VISIBLE) {
+                          if (event.x <= pad(320) && dx < -pad(55) && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.25f) {
+                              closeKoxSidebar()
+                              edgeGestureConsumed = true
+                              return true
+                          }
+                      } else if (kotlin.math.abs(dx) > pad(55) &&
+                          kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.25f &&
+                          ((edgeGestureDownX <= edge && dx > 0) ||
+                           (edgeGestureDownX >= root.width - edge && dx < 0))) {
+                          openKoxSidebar()
+                          edgeGestureConsumed = true
+                          return true
+                      }
+                  }
+              }
+              MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                  if (edgeGestureConsumed) {
+                      edgeGestureTracking = false
+                      edgeGestureConsumed = false
+                      return true
+                  }
+                  edgeGestureTracking = false
+              }
+          }
+          if (touchHiddenByPad'''
+          if gs.count(old_dispatch) != 1: raise SystemExit("Sidebar gesture dispatch anchor mismatch")
+          gs = gs.replace(old_dispatch, new_dispatch)
+          # Replace the old alert-list menu with a left-side overlay panel.
+          menu_start = "    private fun showMenu() {"
+          menu_end = "    /** A physical pad took over:"
+          if gs.count(menu_start) != 1 or gs.count(menu_end) != 1:
+              raise SystemExit("Sidebar menu replacement anchors mismatch")
+          a = gs.index(menu_start)
+          b = gs.index(menu_end, a)
+          sidebar_code = """    private fun showMenu() = openKoxSidebar()
+
+              private fun closeKoxSidebar() {
+                  koxSidebar?.let { panel ->
+                      (panel.parent as? ViewGroup)?.removeView(panel)
+                  }
+                  koxSidebar = null
+                  goFullscreen()
+              }
+
+              private fun openKoxSidebar() {
+                  if (!::root.isInitialized || koxSidebar?.parent != null) return
+                  val panel = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      setPadding(pad(16), pad(22), pad(12), pad(16))
+                      setBackgroundColor(Color.argb(246, 10, 16, 30))
+                      elevation = pad(18).toFloat()
+                  }
+                  koxSidebar = panel
+                  val title = TextView(this).apply {
+                      text = "KOX FEATURES"
+                      textSize = 19f
+                      typeface = Typeface.DEFAULT_BOLD
+                      setTextColor(Color.rgb(56, 189, 248))
+                      setPadding(pad(4), 0, 0, pad(12))
+                  }
+                  panel.addView(title)
+                  val hint = TextView(this).apply {
+                      text = "Swipe from either screen edge · menu opens on the left"
+                      textSize = 10f
+                      setTextColor(Color.LTGRAY)
+                      setPadding(pad(4), 0, 0, pad(12))
+                  }
+                  panel.addView(hint)
+                  val scroll = android.widget.ScrollView(this)
+                  val items = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                  scroll.addView(items)
+                  panel.addView(scroll, LinearLayout.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+                  fun item(label: String, action: () -> Unit) {
+                      val button = TextView(this).apply {
+                          text = label
+                          textSize = 14f
+                          typeface = Typeface.DEFAULT_BOLD
+                          setTextColor(Color.WHITE)
+                          gravity = Gravity.CENTER_VERTICAL
+                          setPadding(pad(14), pad(13), pad(8), pad(13))
+                          background = GradientDrawable().apply {
+                              setColor(Color.argb(90, 51, 65, 85))
+                              cornerRadius = pad(9).toFloat()
+                          }
+                          isClickable = true
+                          setOnClickListener { closeKoxSidebar(); action() }
+                      }
+                      items.addView(button, LinearLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                      ).apply { bottomMargin = pad(7) })
+                  }
+                  item("▶  Carry On") { }
+                  item("✥  Edit Controls") { beginEditing() }
+                  if (prefs.developerTools || Macro.recording || Macro.playing) {
+                      item(if (Macro.playing) "■  Stop Macro Playback" else "●  Play Macro") {
+                          if (Macro.playing) Macro.stopPlayback() else pickMacro()
+                      }
+                  }
+                  item(if (prefs.touchControls) "◉  Hide On-Screen Controls" else "◉  Show On-Screen Controls") {
+                      setTouchControls(!prefs.touchControls)
+                  }
+                  item(if (prefs.gamepadEnabled) "🎮  Ignore Physical Controllers" else "🎮  Enable Physical Controllers") {
+                      setGamepad(!prefs.gamepadEnabled)
+                  }
+                  item("⚙  Graphics & Performance") {
+                      QuickGraphics.show(this, prefs, onApply = { quit() }, onClose = { goFullscreen() })
+                  }
+                  item("▣  Performance HUD") {
+                      if (::statsText.isInitialized) statsText.performLongClick()
+                  }
+                  item("✕  Quit") { confirmQuit() }
+                  val close = TextView(this).apply {
+                      text = "CLOSE"
+                      textSize = 12f
+                      typeface = Typeface.DEFAULT_BOLD
+                      gravity = Gravity.CENTER
+                      setTextColor(Color.rgb(56, 189, 248))
+                      setPadding(0, pad(14), 0, pad(6))
+                      setOnClickListener { closeKoxSidebar() }
+                  }
+                  panel.addView(close)
+                  root.addView(panel, FrameLayout.LayoutParams(
+                      pad(292), ViewGroup.LayoutParams.MATCH_PARENT, Gravity.START or Gravity.TOP))
+                  panel.translationX = -pad(292).toFloat()
+                  panel.animate().translationX(0f).setDuration(180).start()
+                  goFullscreen()
+              }
+
+          """
+          gs = gs[:a] + sidebar_code + gs[b:]
+          game.write_text(gs)
+
+          # Verify the edge-swipe sidebar and HUD typography controls are present.
+          if "openKoxSidebar()" not in gs or "Gravity.START or Gravity.TOP" not in gs or "edgeGestureDownX >= root.width - edge" not in gs:
+              raise SystemExit("Sidebar source verification failed")
+          if "Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)" not in gs:
+              raise SystemExit("Bold FPS typography verification failed")
+
           # Verify all KOX patches are present before compiling.
           checks = {
               "GPU-load scaling enabled with fast recovery": "heatScale = false, loadScale = true" in (root / "android/app/src/main/java/com/pes2017/recomp/DeviceProfile.kt").read_text(),
