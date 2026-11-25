@@ -96,8 +96,13 @@ class MultiPatchActivity : AppCompatActivity() {
                 copyCpks(root, destination) { count++ }
                 if (count == 0) error("Folder tidak berisi file CPK.")
                 runOnUiThread {
+                    // Persist first, then reload from disk so the UI reflects the
+                    // exact source set that will survive activity recreation.
+                    sources.removeAll { it.id == id }
                     sources += SavedSource(id, root.name?.takeIf { it.isNotBlank() } ?: "Patch $count CPK", destination)
                     persistSources()
+                    sources.clear()
+                    loadSources()
                     renderSources()
                     toast("$count CPK ditambahkan.")
                 }
@@ -231,9 +236,27 @@ class MultiPatchActivity : AppCompatActivity() {
                 setTextColor(0xFFFFFFFF.toInt())
                 setTypeface(null, android.graphics.Typeface.BOLD)
             })
+            val cpkFiles = source.directory.walkTopDown()
+                .filter { it.isFile && it.extension.equals("cpk", ignoreCase = true) }
+                .sortedBy { it.name.lowercase(java.util.Locale.ROOT) }
+                .toList()
+            card.addView(TextView(this).apply {
+                text = "${cpkFiles.size} file CPK"
+                textSize = 12f
+                setTextColor(0xFF38BDF8.toInt())
+                setPadding(0, dp(3), 0, dp(6))
+            })
+            cpkFiles.forEach { cpk ->
+                card.addView(TextView(this).apply {
+                    text = "• ${cpk.name}  (${android.text.format.Formatter.formatFileSize(this@MultiPatchActivity, cpk.length())})"
+                    textSize = 11f
+                    setTextColor(0xFFE2E8F0.toInt())
+                    setPadding(dp(4), dp(2), 0, dp(2))
+                })
+            }
             card.addView(TextView(this).apply {
                 text = source.directory.absolutePath
-                textSize = 10f
+                textSize = 9f
                 setTextColor(0xFF94A3B8.toInt())
             })
             val controls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
@@ -249,6 +272,7 @@ class MultiPatchActivity : AppCompatActivity() {
 
     private fun loadSources() {
         sourceRoot.mkdirs()
+        sources.clear()
         val raw = getSharedPreferences("kox_multi_patch", MODE_PRIVATE).getString("sources", "") ?: ""
         raw.lineSequence().filter { it.isNotBlank() }.forEach { line ->
             val parts = line.split('\t', limit = 2)
@@ -261,7 +285,9 @@ class MultiPatchActivity : AppCompatActivity() {
 
     private fun persistSources() {
         val value = sources.joinToString("\n") { "${it.id}\t${it.label.replace('\n', ' ')}" }
-        getSharedPreferences("kox_multi_patch", MODE_PRIVATE).edit().putString("sources", value).apply()
+        val saved = getSharedPreferences("kox_multi_patch", MODE_PRIVATE)
+            .edit().putString("sources", value).commit()
+        check(saved) { "Gagal menyimpan daftar folder patch." }
     }
 
     private fun actionButton(label: String, action: () -> Unit): Button =
