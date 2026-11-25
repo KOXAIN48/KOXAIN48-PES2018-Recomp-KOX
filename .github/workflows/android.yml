@@ -625,7 +625,7 @@ jobs:
           frame = root / "runtime/gpu/vulkan/renderer_frame.cpp"
           fs = frame.read_text()
           if '#include "../../env.h"' not in fs:
-              fs = fs.replace('#include "../../log.h"', '#include "../../log.h"\\n#include "../../env.h"')
+              fs = fs.replace('#include "../../log.h"', '#include "../../log.h"\n#include "../../env.h"\n#include "../../frame_rate.h"\n#include <cmath>')
           marker = "        if (worldDrawn) ApplySceneScale();"
           live = '''        // Manual render scale can change during gameplay. Reconfigure the existing
               // controller at the frame boundary; ApplySceneScale retires/rebuilds targets.
