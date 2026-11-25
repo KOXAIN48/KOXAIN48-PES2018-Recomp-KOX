@@ -24,6 +24,13 @@ jobs:
           path: upstream
           persist-credentials: false
 
+      - name: Inject KOX DpFileList composer and tests
+        run: |
+          mkdir -p upstream/android/app/src/main/java/com/koxain/patchmanager
+          mkdir -p upstream/android/app/src/test/java/com/koxain/patchmanager
+          cp kox-patch-manager/DpFileListComposer.kt upstream/android/app/src/main/java/com/koxain/patchmanager/
+          cp kox-patch-manager/DpFileListComposerTest.kt upstream/android/app/src/test/java/com/koxain/patchmanager/
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -1106,6 +1113,12 @@ jobs:
           test -s "$NDK_LIBCXX" || { echo "NDK libc++_shared.so not found: $NDK_LIBCXX"; exit 1; }
           cp "$NDK_LIBCXX" prebuilt/arm64-v8a/libc++_shared.so
           echo "Packaged libc++_shared.so alongside libpes17.so"
+
+      - name: Test KOX DpFileList composer
+        working-directory: upstream/android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon :app:testDebugUnitTest
 
       - name: Build release APK
         working-directory: upstream/android
