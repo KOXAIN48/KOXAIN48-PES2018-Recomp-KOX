@@ -718,6 +718,88 @@ jobs:
               fs = fs.replace('#include "../../env.h"', '#include "../../env.h"\\n#include "../../frame_rate.h"\\n#include <cmath>')
           frame.write_text(fs)
 
+          # HUD presentation controls: persisted size, opacity and color.
+          prefs = root / "android/app/src/main/java/com/pes2017/recomp/Prefs.kt"
+          ps = prefs.read_text()
+          hud_anchor = "    /** HUD position offsets in dp, saved across matches. */"
+          if ps.count(hud_anchor) != 1: raise SystemExit("HUD style preference anchor mismatch")
+          ps = ps.replace(hud_anchor, '''    var hudTextSize: Float
+                  get() = store.getFloat(KEY_HUD_SIZE, 10f).coerceIn(8f, 20f)
+                  set(value) = store.edit().putFloat(KEY_HUD_SIZE, value.coerceIn(8f, 20f)).apply()
+              var hudOpacity: Float
+                  get() = store.getFloat(KEY_HUD_OPACITY, 1f).coerceIn(0.25f, 1f)
+                  set(value) = store.edit().putFloat(KEY_HUD_OPACITY, value.coerceIn(0.25f, 1f)).apply()
+              var hudColor: String
+                  get() = store.getString(KEY_HUD_COLOR, "#D70F172A") ?: "#D70F172A"
+                  set(value) = store.edit().putString(KEY_HUD_COLOR, value.takeIf { it in setOf("#D70F172A", "#D71E3A5F", "#D72B1B3A", "#D71B4332") } ?: "#D70F172A").apply()
+
+          ''' + hud_anchor)
+          key = '        private const val KEY_HUD_X = "hudOffsetX"'
+          if ps.count(key) != 1: raise SystemExit("HUD style key anchor mismatch")
+          ps = ps.replace(key, '''        private const val KEY_HUD_SIZE = "hudTextSize"
+                  private const val KEY_HUD_OPACITY = "hudOpacity"
+                  private const val KEY_HUD_COLOR = "hudColor"
+          ''' + key)
+          prefs.write_text(ps)
+
+          game = root / "android/app/src/main/java/com/pes2017/recomp/GameActivity.kt"
+          gs = game.read_text()
+          gs = gs.replace('        statsText.textSize = 10f', '        statsText.textSize = prefs.hudTextSize')
+          gs = gs.replace('        statsText.background = pillBg', '''        statsText.background = pillBg
+                  statsText.alpha = prefs.hudOpacity
+                  try { pillBg.setColor(Color.parseColor(prefs.hudColor)) } catch (_: IllegalArgumentException) {}
+                  statsText.setOnLongClickListener {
+                      val panel = LinearLayout(this).apply {
+                          orientation = LinearLayout.VERTICAL
+                          setPadding(pad(20), pad(8), pad(20), 0)
+                      }
+                      val sizeLabel = TextView(this).apply { text = "HUD text size: %.0f".format(prefs.hudTextSize) }
+                      val sizeBar = SeekBar(this).apply {
+                          max = 12
+                          progress = (prefs.hudTextSize - 8f).roundToInt()
+                          setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                              override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
+                                  if (fromUser) { prefs.hudTextSize = 8f + value; sizeLabel.text = "HUD text size: %.0f".format(prefs.hudTextSize); statsText.textSize = prefs.hudTextSize }
+                              }
+                              override fun onStartTrackingTouch(bar: SeekBar) = Unit
+                              override fun onStopTrackingTouch(bar: SeekBar) = Unit
+                          })
+                      }
+                      val opacityLabel = TextView(this).apply { text = "HUD opacity: ${(prefs.hudOpacity * 100).roundToInt()}%" }
+                      val opacityBar = SeekBar(this).apply {
+                          max = 75
+                          progress = ((prefs.hudOpacity - 0.25f) * 100f).roundToInt()
+                          setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                              override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
+                                  if (fromUser) { prefs.hudOpacity = 0.25f + value / 100f; opacityLabel.text = "HUD opacity: ${(prefs.hudOpacity * 100).roundToInt()}%"; statsText.alpha = prefs.hudOpacity }
+                              }
+                              override fun onStartTrackingTouch(bar: SeekBar) = Unit
+                              override fun onStopTrackingTouch(bar: SeekBar) = Unit
+                          })
+                      }
+                      val colors = listOf("Dark", "Blue", "Purple", "Green")
+                      val values = listOf("#D70F172A", "#D71E3A5F", "#D72B1B3A", "#D71B4332")
+                      val colorPicker = android.widget.Spinner(this).apply {
+                          adapter = android.widget.ArrayAdapter(this@GameActivity, android.R.layout.simple_spinner_dropdown_item, colors)
+                          setSelection(values.indexOf(prefs.hudColor).coerceAtLeast(0))
+                          onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                              override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
+                              override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                                  prefs.hudColor = values[position]
+                                  pillBg.setColor(Color.parseColor(prefs.hudColor))
+                              }
+                          }
+                      }
+                      panel.addView(sizeLabel); panel.addView(sizeBar)
+                      panel.addView(opacityLabel); panel.addView(opacityBar); panel.addView(colorPicker)
+                      AlertDialog.Builder(this).setTitle("Customize HUD").setView(panel)
+                          .setPositiveButton(android.R.string.ok, null).show()
+                      true
+                  }''')
+          if "Customize HUD" not in gs or "prefs.hudTextSize" not in gs:
+              raise SystemExit("HUD customization insertion failed")
+          game.write_text(gs)
+
           # Verify all KOX patches are present before compiling.
           checks = {
               "Dynamic scaling disabled for render-bug isolation": "heatScale = false, loadScale = false" in (root / "android/app/src/main/java/com/pes2017/recomp/DeviceProfile.kt").read_text(),
