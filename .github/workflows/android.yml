@@ -1131,3 +1131,4 @@ jobs:
           retention-days: 14
 
 # KOX build workflow: fetch private XEX, recompile native ARM64 code, then package APK.
+# Re-run after correcting the dispatchTouchEvent patch anchor.
