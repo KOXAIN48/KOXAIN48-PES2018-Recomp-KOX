@@ -1,5 +1,5 @@
 name: KOX PES2018 Android APK # Rebuild after per-CPK selection UI
-# Rebuild after Multi-Patch compile fix
+# Rebuild after Multi-Patch compile fix; no persistent backup and checkbox filtering
 
 'on':
   workflow_dispatch:
