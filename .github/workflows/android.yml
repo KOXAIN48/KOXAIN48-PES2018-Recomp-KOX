@@ -269,8 +269,8 @@ jobs:
           qs = qs.replace('v.fps = 30 + value * 5; fpsText.text', 'v.fps = 30 + value * 5; prefs.fpsLimit = v.fps; NativeBridge.nativeSetOption("PES17_FPS_LIMIT", v.fps.toString()); fpsText.text')
           # Put HUD color selection directly in the in-game Graphics & Performance menu.
           color_anchor = '        val fpsText = label("")'
-          color_block = '''        val hudColorNames = listOf("Black", "White", "Gray", "Silver", "Red", "Crimson", "Pink", "Orange", "Amber", "Yellow", "Gold", "Lime", "Green", "Mint", "Cyan", "Sky Blue", "Blue", "Navy", "Purple", "Violet", "Magenta", "Brown")
-                  val hudColorValues = listOf("#D70B0B0B", "#D7FFFFFF", "#D7666666", "#D7BFC7D5", "#D7E53935", "#D7A31525", "#D7EC407A", "#D7FB8C00", "#D7FFB300", "#D7FDD835", "#D7D4AF37", "#D7AEEA00", "#D743A047", "#D74DB6AC", "#D700BCD4", "#D703A9F4", "#D72196F3", "#D7153A73", "#D78E44AD", "#D76A1B9A", "#D7D81B60", "#D7794A2A")
+          color_block = '''        val hudColorNames = listOf("Black", "White", "Gray", "Silver", "Red", "Crimson", "Pink", "Orange", "Amber", "Yellow", "Gold", "Lime", "Green", "Mint", "Cyan", "Sky Blue", "Blue", "Navy")
+                  val hudColorValues = listOf("#D70B0B0B", "#D7FFFFFF", "#D7666666", "#D7BFC7D5", "#D7E53935", "#D7A31525", "#D7EC407A", "#D7FB8C00", "#D7FFB300", "#D7FDD835", "#D7D4AF37", "#D7AEEA00", "#D743A047", "#D74DB6AC", "#D700BCD4", "#D703A9F4", "#D72196F3", "#D7153A73")
                   val hudColorPicker = android.widget.Spinner(activity).apply {
                       adapter = android.widget.ArrayAdapter(activity, android.R.layout.simple_spinner_dropdown_item, hudColorNames)
                       setSelection(hudColorValues.indexOf(prefs.hudColor).coerceAtLeast(0))
@@ -739,7 +739,7 @@ jobs:
                   set(value) = store.edit().putFloat(KEY_HUD_OPACITY, value.coerceIn(0.25f, 1f)).apply()
               var hudColor: String
                   get() = store.getString(KEY_HUD_COLOR, "#D70F172A") ?: "#D70F172A"
-                  set(value) = store.edit().putString(KEY_HUD_COLOR, value.takeIf { it in setOf("#D70B0B0B", "#D7FFFFFF", "#D7666666", "#D7BFC7D5", "#D7E53935", "#D7A31525", "#D7EC407A", "#D7FB8C00", "#D7FFB300", "#D7FDD835", "#D7D4AF37", "#D7AEEA00", "#D743A047", "#D74DB6AC", "#D700BCD4", "#D703A9F4", "#D72196F3", "#D7153A73", "#D78E44AD", "#D76A1B9A", "#D7D81B60", "#D7794A2A") } ?: "#D70B0B0B").apply()
+                  set(value) = store.edit().putString(KEY_HUD_COLOR, value.takeIf { it in setOf("#D70B0B0B", "#D7FFFFFF", "#D7666666", "#D7BFC7D5", "#D7E53935", "#D7A31525", "#D7EC407A", "#D7FB8C00", "#D7FFB300", "#D7FDD835", "#D7D4AF37", "#D7AEEA00", "#D743A047", "#D74DB6AC", "#D700BCD4", "#D703A9F4", "#D72196F3", "#D7153A73") } ?: "#D70B0B0B").apply()
 
           ''' + hud_anchor)
           key = '        private const val KEY_HUD_X = "hudOffsetX"'
@@ -785,8 +785,8 @@ jobs:
                               override fun onStopTrackingTouch(bar: SeekBar) = Unit
                           })
                       }
-                      val colors = listOf("Black", "White", "Gray", "Silver", "Red", "Crimson", "Pink", "Orange", "Amber", "Yellow", "Gold", "Lime", "Green", "Mint", "Cyan", "Sky Blue", "Blue", "Navy", "Purple", "Violet", "Magenta", "Brown")
-                      val values = listOf("#D70B0B0B", "#D7FFFFFF", "#D7666666", "#D7BFC7D5", "#D7E53935", "#D7A31525", "#D7EC407A", "#D7FB8C00", "#D7FFB300", "#D7FDD835", "#D7D4AF37", "#D7AEEA00", "#D743A047", "#D74DB6AC", "#D700BCD4", "#D703A9F4", "#D72196F3", "#D7153A73", "#D78E44AD", "#D76A1B9A", "#D7D81B60", "#D7794A2A")
+                      val colors = listOf("Black", "White", "Gray", "Silver", "Red", "Crimson", "Pink", "Orange", "Amber", "Yellow", "Gold", "Lime", "Green", "Mint", "Cyan", "Sky Blue", "Blue", "Navy")
+                      val values = listOf("#D70B0B0B", "#D7FFFFFF", "#D7666666", "#D7BFC7D5", "#D7E53935", "#D7A31525", "#D7EC407A", "#D7FB8C00", "#D7FFB300", "#D7FDD835", "#D7D4AF37", "#D7AEEA00", "#D743A047", "#D74DB6AC", "#D700BCD4", "#D703A9F4", "#D72196F3", "#D7153A73")
                       val colorPicker = android.widget.Spinner(this).apply {
                           adapter = android.widget.ArrayAdapter(this@GameActivity, android.R.layout.simple_spinner_dropdown_item, colors)
                           setSelection(values.indexOf(prefs.hudColor).coerceAtLeast(0))
