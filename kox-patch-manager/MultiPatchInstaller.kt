@@ -15,7 +15,7 @@ import java.util.Locale
  *
  * It builds a complete staging tree, verifies every copied CPK and generated
  * DpFileList, then swaps the active patch directory. The previous active tree
- * is retained in a timestamped backup directory.
+ * is held only temporarily for rollback and removed after successful activation.
  */
 class MultiPatchInstaller(
     private val activePatchDirectory: File,
@@ -39,7 +39,6 @@ class MultiPatchInstaller(
         val cpkNames: List<String>,
         val sourceCount: Int,
         val conflicts: List<Conflict>,
-        val backup: File? = null,
     )
 
     private data class Candidate(val source: Source, val file: File)
@@ -135,7 +134,7 @@ class MultiPatchInstaller(
             // The prior active directory is only a temporary rollback copy.
             // Once the new directory is active, remove the displaced tree.
             if (activeMoved) displaced.deleteRecursively()
-            return InstallReport(names, sourcesHighestPriorityFirst.size, conflicts, null)
+            return InstallReport(names, sourcesHighestPriorityFirst.size, conflicts)
         } catch (t: Throwable) {
             if (newActiveMoved) activePatchDirectory.deleteRecursively()
             if (activeMoved && displaced.exists()) {
