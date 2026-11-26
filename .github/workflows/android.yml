@@ -1393,7 +1393,7 @@ jobs:
               "Display resolution preferences": "var displayResolutionWidth: Int" in prefs.read_text() and "var displayResolutionHeight: Int" in prefs.read_text(),
               "Display resolution presets and custom fields": "7680 to 4320" in settings.read_text() and "Custom width" in settings.read_text() and "Custom height" in settings.read_text(),
               "Surface uses selected dimensions": "prefs.displayResolutionWidth" in game.read_text() and "prefs.displayResolutionHeight" in game.read_text(),
-              "Output resolution explanation": "Internal Render is configured separately; its 16:9 image is scaled into the selected output buffer." in settings.read_text(),
+              "Output resolution explanation": "Internal Render is configured separately from the selected output buffer." in settings.read_text(),
               "HUD reports surface buffer honestly": "Surface Buffer:" in game.read_text() and "Internal Render:" not in game.read_text(),
               "Aspect ratio fit": "availableRatio > ratio" in game.read_text(),
               "Quick Graphics dialog title and buttons contrast": "androidx.appcompat.R.id.alertTitle" in (root / "android/app/src/main/java/com/pes2017/recomp/QuickGraphics.kt").read_text(),
