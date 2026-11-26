@@ -19,7 +19,6 @@ import java.util.Locale
  */
 class MultiPatchInstaller(
     private val activePatchDirectory: File,
-    private val backupDirectory: File,
 ) {
     enum class ConflictPolicy {
         /** Stop without changing the active patch when two sources contain the same CPK name. */
@@ -123,11 +122,6 @@ class MultiPatchInstaller(
             require(stagedCpks.size == names.size) { "Staging CPK count does not match the merge plan." }
 
             if (activePatchDirectory.exists()) {
-                val backupParent = backup.parentFile
-                    ?: throw IOException("Backup directory has no parent.")
-                if (!backupParent.isDirectory && !backupParent.mkdirs()) {
-                    throw IOException("Cannot create backup directory: $backupParent")
-                }
                 if (!activePatchDirectory.renameTo(displaced)) {
                     throw IOException("Cannot move the active patch aside.")
                 }
