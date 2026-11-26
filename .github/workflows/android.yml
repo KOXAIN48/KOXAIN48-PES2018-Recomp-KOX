@@ -1282,7 +1282,7 @@ jobs:
               raise SystemExit("Quick Graphics scale listener dispatch anchor mismatch")
           scale_block = scale_block.replace(
               old_dispatch,
-              old_dispatch + '\\n                NativeBridge.nativeSetOption("PES17_SCENE_SCALE", (v.scale * v.scene / 100f).coerceIn(0.5f, 3.0f).toString())',
+              old_dispatch + '\n                NativeBridge.nativeSetOption("PES17_SCENE_SCALE", (v.scale * v.scene / 100f).coerceIn(0.5f, 3.0f).toString())',
           )
           qs = qs[:scale_listener] + scale_block + qs[fps_listener:]
           quick.write_text(qs)
