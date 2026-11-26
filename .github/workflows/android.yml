@@ -1130,11 +1130,13 @@ jobs:
                           startActivity(Intent(this@PatchesActivity, MultiPatchActivity::class.java))
                       }
                   }
-                  val patchGroup = patchReplace.parent.parent as? android.view.ViewGroup
+                  val patchActionRow = patchReplace.parent as? android.view.View
+                      ?: throw IllegalStateException("PATCH action row not found")
+                  val patchGroup = patchActionRow.parent as? android.view.ViewGroup
                       ?: throw IllegalStateException("PATCH section container not found")
                   patchGroup.addView(
                       cpkPickerButton,
-                      patchGroup.indexOfChild(patchReplace.parent) + 1,
+                      patchGroup.indexOfChild(patchActionRow) + 1,
                       android.view.ViewGroup.LayoutParams(
                           android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                           android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
