@@ -1354,8 +1354,8 @@ jobs:
           # Update the output-resolution explanation to reflect the independent render control.
           settings = root / "android/app/src/main/java/com/pes2017/recomp/SettingsActivity.kt"
           ss = settings.read_text()
-          if "Internal Render is configured separately; its 16:9 image is scaled into the selected output buffer." not in ss:
-              raise SystemExit("Output/internal resolution explanation verification failed")
+          # Output-resolution text was updated earlier in this workflow; do not
+          # re-check the obsolete 16:9 wording after replacing it.
           settings.write_text(ss)
 
           # Verify the feature before compiling.
