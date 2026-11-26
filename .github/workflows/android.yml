@@ -1124,7 +1124,7 @@ jobs:
                   label.visibility = android.view.View.GONE
                   oldSeek.visibility = android.view.View.GONE
                   val button = Button(this).apply {
-                      text = "Internal Render: \${prefs.internalRenderWidth} × \${prefs.internalRenderHeight}"
+                      text = "Internal Render: " + prefs.internalRenderWidth + " × " + prefs.internalRenderHeight
                       setOnClickListener { showInternalRenderDialog(this) }
                   }
                   group.addView(button, group.indexOfChild(oldSeek) + 1, android.view.ViewGroup.LayoutParams(
@@ -1212,6 +1212,31 @@ jobs:
           if "setupInternalRenderControl()" not in ss or "Custom…" not in ss or "Internal Render Resolution (16:9)" not in ss:
               raise SystemExit("Internal render UI verification failed")
           settings.write_text(ss)
+
+          # Default output resolution follows each phone's landscape display metrics.
+          prefs = root / "android/app/src/main/java/com/pes2017/recomp/Prefs.kt"
+          ps = prefs.read_text()
+          store_anchor = '''    private val store: SharedPreferences =
+                  context.applicationContext.getSharedPreferences("pes17", Context.MODE_PRIVATE)
+          '''
+          if "private val defaultDisplayWidth" not in ps:
+              if ps.count(store_anchor) != 1:
+                  raise SystemExit("Device display default insertion anchor mismatch")
+              ps = ps.replace(store_anchor, store_anchor + '''
+              private val defaultDisplayWidth = maxOf(
+                  context.resources.displayMetrics.widthPixels,
+                  context.resources.displayMetrics.heightPixels,
+              ).coerceIn(320, 7680)
+              private val defaultDisplayHeight = minOf(
+                  context.resources.displayMetrics.widthPixels,
+                  context.resources.displayMetrics.heightPixels,
+              ).coerceIn(240, 4320)
+          ''')
+          ps = ps.replace("store.getInt(KEY_DISPLAY_WIDTH, 2712)", "store.getInt(KEY_DISPLAY_WIDTH, defaultDisplayWidth)")
+          ps = ps.replace("store.getInt(KEY_DISPLAY_HEIGHT, 1220)", "store.getInt(KEY_DISPLAY_HEIGHT, defaultDisplayHeight)")
+          if "KEY_DISPLAY_WIDTH, defaultDisplayWidth" not in ps or "KEY_DISPLAY_HEIGHT, defaultDisplayHeight" not in ps:
+              raise SystemExit("Adaptive output resolution default verification failed")
+          prefs.write_text(ps)
 
           # Keep the existing global EDRAM multiplier at 1x; the independent scene scale
           # controls only full-frame render targets and leaves the output buffer separate.
@@ -1302,7 +1327,23 @@ jobs:
                           env::Real("PES17_SCENE_SCALE", g.sceneScale), 0.5, manualLimit);"""
           if fs.count(old_manual) != 1:
               raise SystemExit("Live internal render-scale clamp anchor mismatch")
-          frame.write_text(fs.replace(old_manual, new_manual))
+          fs = fs.replace(old_manual, new_manual)
+          adaptive_pattern = r'if \(std::abs\(requestedScale - g\.dynScale\.Current\(\) / 16\.0f\) > 0\.001f\)\s*\{.*?\n\s*\}'
+          adaptive_block = '''if (std::abs(requestedScale - g.dynScale.Ceiling() / 16.0f) > 0.001f)
+                      {
+                          const bool keepHeat = g.heatScale;
+                          const bool keepLoad = g.loadScale;
+                          const uint32_t limit = frame_rate::Limit();
+                          const double period = 1000.0 / double(limit ? std::min(limit, 240u) : 60u);
+                          const int step = int(std::lround(requestedScale * 16.0f));
+                          g.dynamicScale = true;
+                          g.dynScale.Configure(step, (keepHeat || keepLoad) ? 8 : step, period * 0.78);
+                          g.dynScale.SetRules(keepHeat, keepLoad);
+                      }'''
+          fs, adaptive_count = re.subn(adaptive_pattern, adaptive_block, fs, count=1, flags=re.S)
+          if adaptive_count != 1:
+              raise SystemExit("Adaptive internal render scale preservation patch mismatch")
+          frame.write_text(fs)
 
           # Update the output-resolution explanation to reflect the independent render control.
           settings = root / "android/app/src/main/java/com/pes2017/recomp/SettingsActivity.kt"
@@ -1346,7 +1387,7 @@ jobs:
               "Display resolution preferences": "var displayResolutionWidth: Int" in prefs.read_text() and "var displayResolutionHeight: Int" in prefs.read_text(),
               "Display resolution presets and custom fields": "7680 to 4320" in settings.read_text() and "Custom width" in settings.read_text() and "Custom height" in settings.read_text(),
               "Surface uses selected dimensions": "prefs.displayResolutionWidth" in game.read_text() and "prefs.displayResolutionHeight" in game.read_text(),
-              "Output resolution explanation": "game scene remains 1280×720 at 1×" in settings.read_text(),
+              "Output resolution explanation": "Internal Render is configured separately; its 16:9 image is scaled into the selected output buffer." in settings.read_text(),
               "HUD reports surface buffer honestly": "Surface Buffer:" in game.read_text() and "Internal Render:" not in game.read_text(),
               "Aspect ratio fit": "availableRatio > ratio" in game.read_text(),
               "Quick Graphics dialog title and buttons contrast": "androidx.appcompat.R.id.alertTitle" in (root / "android/app/src/main/java/com/pes2017/recomp/QuickGraphics.kt").read_text(),
