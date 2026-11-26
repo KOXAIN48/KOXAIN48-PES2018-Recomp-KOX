@@ -151,8 +151,6 @@ class MultiPatchActivity : AppCompatActivity() {
             return
         }
         val active = File(root, "dlc/SYSTEM00000000")
-        // Match the existing PATCHES backup slot so RESTORE PREVIOUS can see it.
-        val backup = File(root, "patch-backups/patch")
         val policy = if (conflictChoice.isChecked) {
             MultiPatchInstaller.ConflictPolicy.KEEP_HIGHEST_PRIORITY
         } else {
@@ -167,7 +165,7 @@ class MultiPatchActivity : AppCompatActivity() {
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 dialog.dismiss()
-                runInstall(active, backup, policy)
+                runInstall(active, policy)
             }
         }
         dialog.show()
@@ -175,7 +173,6 @@ class MultiPatchActivity : AppCompatActivity() {
 
     private fun runInstall(
         active: File,
-        backup: File,
         policy: MultiPatchInstaller.ConflictPolicy,
     ) {
         val progress = AlertDialog.Builder(this)
@@ -186,7 +183,7 @@ class MultiPatchActivity : AppCompatActivity() {
         progress.show()
         thread(name = "kox-multi-patch-install") {
             val result = runCatching {
-                MultiPatchInstaller(active, backup).install(
+                MultiPatchInstaller(active).install(
                     sources.map { MultiPatchInstaller.Source(it.id, it.label, it.directory, selectedCpkPaths(it)) },
                     policy,
                 )
