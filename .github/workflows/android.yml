@@ -1071,6 +1071,262 @@ jobs:
           if "Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)" not in gs:
               raise SystemExit("Bold FPS typography verification failed")
 
+          # Independent internal render resolution: 16:9 render target, separate output buffer.
+          prefs = root / "android/app/src/main/java/com/pes2017/recomp/Prefs.kt"
+          ps = prefs.read_text()
+          old_render = """    var renderScale: Int
+                  get() = store.getInt(KEY_RENDER_SCALE, 1).coerceIn(1, 3)
+                  set(value) = store.edit().putInt(KEY_RENDER_SCALE, value.coerceIn(1, 3)).apply()
+          """
+          new_render = """    var renderScale: Int
+                  get() = store.getInt(KEY_RENDER_SCALE, 1).coerceIn(1, 3)
+                  set(value) {
+                      val preset = value.coerceIn(1, 3)
+                      store.edit()
+                          .putInt(KEY_RENDER_SCALE, preset)
+                          .putInt(KEY_INTERNAL_RENDER_WIDTH, 1280 * preset)
+                          .putInt(KEY_INTERNAL_RENDER_HEIGHT, 720 * preset)
+                          .apply()
+                  }
+
+              /** Custom 16:9 internal render size; output surface resolution is independent. */
+              var internalRenderWidth: Int
+                  get() = store.getInt(KEY_INTERNAL_RENDER_WIDTH, 1280 * renderScale).coerceIn(1280, 3840)
+                  set(value) = store.edit().putInt(KEY_INTERNAL_RENDER_WIDTH, value.coerceIn(1280, 3840)).apply()
+              var internalRenderHeight: Int
+                  get() = store.getInt(KEY_INTERNAL_RENDER_HEIGHT, 720 * renderScale).coerceIn(720, 2160)
+                  set(value) = store.edit().putInt(KEY_INTERNAL_RENDER_HEIGHT, value.coerceIn(720, 2160)).apply()
+          """
+          if ps.count(old_render) != 1:
+              raise SystemExit("Internal render preference anchor mismatch")
+          ps = ps.replace(old_render, new_render)
+          key_anchor = '        private const val KEY_RENDER_SCALE = "renderScale"'
+          if ps.count(key_anchor) != 1:
+              raise SystemExit("Internal render preference key anchor mismatch")
+          ps = ps.replace(key_anchor, key_anchor + """
+                  private const val KEY_INTERNAL_RENDER_WIDTH = "internalRenderWidth"
+                  private const val KEY_INTERNAL_RENDER_HEIGHT = "internalRenderHeight"
+          """)
+          prefs.write_text(ps)
+
+          settings = root / "android/app/src/main/java/com/pes2017/recomp/SettingsActivity.kt"
+          ss = settings.read_text()
+          old_bar = """        bar(R.id.render_scale, R.id.render_scale_label, 2, prefs.renderScale - 1,
+                  { getString(R.string.render_scale, it + 1) }) { prefs.renderScale = it + 1 }"""
+          if ss.count(old_bar) != 1:
+              raise SystemExit("Internal render settings slider anchor mismatch")
+          ss = ss.replace(old_bar, "        setupInternalRenderControl()")
+          method_anchor = "    private fun bar("
+          method = r'''    private fun setupInternalRenderControl() {
+                  val label = findViewById<TextView>(R.id.render_scale_label)
+                  val oldSeek = findViewById<SeekBar>(R.id.render_scale)
+                  val group = label.parent as? android.view.ViewGroup ?: return
+                  label.visibility = android.view.View.GONE
+                  oldSeek.visibility = android.view.View.GONE
+                  val button = Button(this).apply {
+                      text = "Internal Render: \${prefs.internalRenderWidth} × \${prefs.internalRenderHeight}"
+                      setOnClickListener { showInternalRenderDialog(this) }
+                  }
+                  group.addView(button, group.indexOfChild(oldSeek) + 1, android.view.ViewGroup.LayoutParams(
+                      android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                      android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+                  ))
+              }
+
+              private fun showInternalRenderDialog(button: Button) {
+                  val choices = listOf(
+                      "LOW — 1x — 1280 × 720" to (1280 to 720),
+                      "MEDIUM — 2x — 2560 × 1440" to (2560 to 1440),
+                      "HIGH — 3x — 3840 × 2160" to (3840 to 2160),
+                  )
+                  val labels = choices.map { it.first } + "Custom…"
+                  val box = android.widget.LinearLayout(this).apply {
+                      orientation = android.widget.LinearLayout.VERTICAL
+                      setPadding(24, 12, 24, 4)
+                  }
+                  val spinner = android.widget.Spinner(this).apply {
+                      adapter = android.widget.ArrayAdapter(this@SettingsActivity,
+                          android.R.layout.simple_spinner_item, labels)
+                          .also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+                  }
+                  val width = android.widget.EditText(this).apply {
+                      hint = "Internal width (1280–3840)"
+                      inputType = android.text.InputType.TYPE_CLASS_NUMBER
+                      setText(prefs.internalRenderWidth.toString())
+                  }
+                  val height = android.widget.EditText(this).apply {
+                      hint = "Internal height (720–2160)"
+                      inputType = android.text.InputType.TYPE_CLASS_NUMBER
+                      setText(prefs.internalRenderHeight.toString())
+                  }
+                  box.addView(TextView(this).apply { text = "Internal Render Resolution (16:9)" })
+                  box.addView(spinner); box.addView(width); box.addView(height)
+                  val selected = choices.indexOfFirst {
+                      it.second.first == prefs.internalRenderWidth && it.second.second == prefs.internalRenderHeight
+                  }
+                  spinner.setSelection(if (selected >= 0) selected else choices.size)
+                  spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                      override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
+                      override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                          if (position < choices.size) {
+                              width.setText(choices[position].second.first.toString())
+                              height.setText(choices[position].second.second.toString())
+                          }
+                      }
+                  }
+                  AlertDialog.Builder(this)
+                      .setTitle("Internal Render")
+                      .setMessage("Independent from Output Resolution. Keep the internal render at 16:9; the output buffer adapts to the phone screen ratio. Higher settings use more GPU memory and may be capped by the device.")
+                      .setView(box)
+                      .setNegativeButton(android.R.string.cancel, null)
+                      .setPositiveButton("Save") { _, _ ->
+                          val w = width.text.toString().toIntOrNull()
+                          val h = height.text.toString().toIntOrNull()
+                          val ratio = if (w != null && h != null && h > 0) w.toDouble() / h else 0.0
+                          if (w == null || h == null || w !in 1280..3840 || h !in 720..2160 ||
+                              kotlin.math.abs(ratio - 16.0 / 9.0) > 0.01) {
+                              android.widget.Toast.makeText(this, "Invalid size. Use 1280–3840 × 720–2160 in 16:9.", android.widget.Toast.LENGTH_LONG).show()
+                          } else {
+                              val preset = when {
+                                  w >= 3200 -> 3
+                                  w >= 1920 -> 2
+                                  else -> 1
+                              }
+                              prefs.renderScale = preset
+                              prefs.internalRenderWidth = w
+                              prefs.internalRenderHeight = h
+                              button.text = "Internal Render: $w × $h"
+                              android.widget.Toast.makeText(this, "Saved. Restart the match to apply.", android.widget.Toast.LENGTH_LONG).show()
+                          }
+                      }
+                      .show()
+              }
+
+          '''
+          if ss.count(method_anchor) != 1:
+              raise SystemExit("Internal render dialog method insertion anchor mismatch")
+          ss = ss.replace(method_anchor, method + method_anchor)
+          old_explain = "The game scene remains 1280×720 at 1×; use Internal Render to change rendering detail."
+          new_explain = "Internal Render is configured separately; its 16:9 image is scaled into the selected output buffer."
+          ss = ss.replace(old_explain, new_explain)
+          if "setupInternalRenderControl()" not in ss or "Custom…" not in ss or "Internal Render Resolution (16:9)" not in ss:
+              raise SystemExit("Internal render UI verification failed")
+          settings.write_text(ss)
+
+          # Keep the existing global EDRAM multiplier at 1x; the independent scene scale
+          # controls only full-frame render targets and leaves the output buffer separate.
+          game = root / "android/app/src/main/java/com/pes2017/recomp/GameActivity.kt"
+          gs = game.read_text()
+          old_global = """        if (prefs.renderScale in 1..3) {
+                      NativeBridge.nativeSetOption("PES17_SCALE", prefs.renderScale.toString())
+                  }"""
+          if gs.count(old_global) != 1:
+              raise SystemExit("Internal render native multiplier anchor mismatch")
+          gs = gs.replace(old_global, '        NativeBridge.nativeSetOption("PES17_SCALE", "1")')
+          old_scene = '        NativeBridge.nativeSetOption("PES17_SCENE_SCALE", String.format(Locale.US, "%.4f", prefs.sceneScalePercent / 100.0))'
+          new_scene = '''        val internalScale = minOf(
+                      prefs.internalRenderWidth / 1280.0,
+                      prefs.internalRenderHeight / 720.0,
+                  )
+                  val effectiveSceneScale = internalScale * (prefs.sceneScalePercent / 100.0)
+                  NativeBridge.nativeSetOption(
+                      "PES17_SCENE_SCALE",
+                      String.format(Locale.US, "%.4f", effectiveSceneScale.coerceIn(0.5, 3.0)),
+                  )'''
+          if gs.count(old_scene) != 1:
+              raise SystemExit("Internal render scene-scale dispatch anchor mismatch")
+          game.write_text(gs.replace(old_scene, new_scene))
+
+          # Keep the Quick Graphics preset and match-quality slider consistent with custom resolution.
+          quick = root / "android/app/src/main/java/com/pes2017/recomp/QuickGraphics.kt"
+          qs = quick.read_text()
+          qs, n_enabled = re.subn(r'scene\.isEnabled = v\.scale == 1', 'scene.isEnabled = true', qs)
+          if n_enabled != 2:
+              raise SystemExit(f"Quick Graphics scene control enablement mismatch: {n_enabled}")
+          old_live_scene = 'NativeBridge.nativeSetOption("PES17_SCENE_SCALE", (v.scene / 100f).toString())'
+          new_live_scene = 'NativeBridge.nativeSetOption("PES17_SCENE_SCALE", (v.scale * v.scene / 100f).coerceIn(0.5f, 3.0f).toString())'
+          if qs.count(old_live_scene) != 1:
+              raise SystemExit("Quick Graphics live scene-scale anchor mismatch")
+          qs = qs.replace(old_live_scene, new_live_scene)
+          old_scale_line = '                scaleText.text = activity.getString(R.string.qg_scale, v.scale)\n                scene.isEnabled = true\n                touched()'
+          new_scale_line = '                scaleText.text = activity.getString(R.string.qg_scale, v.scale)\n                NativeBridge.nativeSetOption("PES17_SCENE_SCALE", (v.scale * v.scene / 100f).coerceIn(0.5f, 3.0f).toString())\n                scene.isEnabled = true\n                touched()'
+          if qs.count(old_scale_line) != 1:
+              raise SystemExit("Quick Graphics preset live dispatch anchor mismatch")
+          quick.write_text(qs.replace(old_scale_line, new_scale_line))
+
+          # Allow the safe full-frame target scaler to render up to 3x, with Vulkan's
+          # maximum image dimension as the per-device guard.
+          renderer = root / "runtime/gpu/vulkan/renderer.cpp"
+          rs = renderer.read_text()
+          old_clamp = "            asked = std::clamp(asked, 0.5, 1.0);"
+          new_clamp = """            VkPhysicalDeviceProperties renderProperties{};
+                      vkGetPhysicalDeviceProperties(g.physical, &renderProperties);
+                      const double deviceScaleLimit = std::max(
+                          0.5, std::min(3.0, double(renderProperties.limits.maxImageDimension2D) / 1280.0));
+                      asked = std::clamp(asked, 0.5, deviceScaleLimit);"""
+          if rs.count(old_clamp) != 1:
+              raise SystemExit("Renderer internal scale clamp anchor mismatch")
+          rs = rs.replace(old_clamp, new_clamp)
+          old_log = """            if (g.sceneScale < 1.0f)
+                          LOGI("renderer: the scene is drawn at %.4g of 1280x720 (%ux%u)", g.sceneScale,
+                               HostOf(1280, g.sceneScale), HostOf(720, g.sceneScale));"""
+          new_log = """            if (g.sceneScale != 1.0f)
+                          LOGI("renderer: internal scene render is %.4g of 1280x720 (%ux%u)", g.sceneScale,
+                               HostOf(1280, g.sceneScale), HostOf(720, g.sceneScale));"""
+          if rs.count(old_log) != 1:
+              raise SystemExit("Renderer internal scale log anchor mismatch")
+          renderer.write_text(rs.replace(old_log, new_log))
+
+          dyn = root / "runtime/gpu/vulkan/dynamic_scale.h"
+          ds = dyn.read_text()
+          old_ceiling = "            ceiling_ = std::clamp(ceiling, floor_, 16);"
+          if ds.count(old_ceiling) != 1:
+              raise SystemExit("Dynamic scale ceiling anchor mismatch")
+          dyn.write_text(ds.replace(old_ceiling, "            ceiling_ = std::clamp(ceiling, floor_, 48);"))
+
+          state = root / "runtime/gpu/vulkan/renderer_state.h"
+          st = state.read_text()
+          st, n_comment = re.subn(r'PES17_SCENE_SCALE \(0\.5-1\)', 'PES17_SCENE_SCALE (0.5-3)', st)
+          if n_comment != 1:
+              raise SystemExit("Renderer scene-scale documentation anchor mismatch")
+          state.write_text(st)
+
+          frame = root / "runtime/gpu/vulkan/renderer_frame.cpp"
+          fs = frame.read_text()
+          old_manual = 'const double manualScale = std::clamp(env::Real("PES17_SCENE_SCALE", g.sceneScale), 0.5, 1.0);'
+          new_manual = """VkPhysicalDeviceProperties manualProperties{};
+                      vkGetPhysicalDeviceProperties(g.physical, &manualProperties);
+                      const double manualLimit = std::max(
+                          0.5, std::min(3.0, double(manualProperties.limits.maxImageDimension2D) / 1280.0));
+                      const double manualScale = std::clamp(
+                          env::Real("PES17_SCENE_SCALE", g.sceneScale), 0.5, manualLimit);"""
+          if fs.count(old_manual) != 1:
+              raise SystemExit("Live internal render-scale clamp anchor mismatch")
+          frame.write_text(fs.replace(old_manual, new_manual))
+
+          # Update the output-resolution explanation to reflect the independent render control.
+          settings = root / "android/app/src/main/java/com/pes2017/recomp/SettingsActivity.kt"
+          ss = settings.read_text()
+          if "Internal Render is configured separately; its 16:9 image is scaled into the selected output buffer." not in ss:
+              raise SystemExit("Output/internal resolution explanation verification failed")
+          settings.write_text(ss)
+
+          # Verify the feature before compiling.
+          checks = {
+              "Internal render custom dimensions": "var internalRenderWidth: Int" in prefs.read_text() and "var internalRenderHeight: Int" in prefs.read_text(),
+              "Internal render 1x/2x/3x presets": all(x in settings.read_text() for x in ("LOW — 1x", "MEDIUM — 2x", "HIGH — 3x")),
+              "Internal render 16:9 validation": "16.0 / 9.0" in settings.read_text(),
+              "Output resolution remains independent": "prefs.displayResolutionWidth" in game.read_text() and "prefs.displayResolutionHeight" in game.read_text(),
+              "Runtime internal render uses custom size": "prefs.internalRenderWidth / 1280.0" in game.read_text() and 'nativeSetOption("PES17_SCALE", "1")' in game.read_text(),
+              "Renderer supports up to 3x": "std::clamp(asked, 0.5, deviceScaleLimit)" in renderer.read_text() and "ceiling_, 48" in dyn.read_text(),
+              "Live internal render respects Vulkan limits": "manualProperties.limits.maxImageDimension2D" in frame.read_text(),
+              "Quick Graphics scene quality remains enabled": "scene.isEnabled = true" in quick.read_text(),
+          }
+          for name, ok in checks.items():
+              print(f"{name}: {'OK' if ok else 'MISSING'}")
+          if not all(checks.values()):
+              raise SystemExit("KOX independent internal render verification failed")
+
           # Verify all KOX patches are present before compiling.
           checks = {
               "GPU-load scaling enabled with fast recovery": "heatScale = false, loadScale = true" in (root / "android/app/src/main/java/com/pes2017/recomp/DeviceProfile.kt").read_text(),
