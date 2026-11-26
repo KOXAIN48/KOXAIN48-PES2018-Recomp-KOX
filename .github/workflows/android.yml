@@ -1367,7 +1367,7 @@ jobs:
               "Internal render 16:9 validation": "16.0 / 9.0" in settings.read_text(),
               "Output resolution remains independent": "prefs.displayResolutionWidth" in game.read_text() and "prefs.displayResolutionHeight" in game.read_text(),
               "Runtime internal render uses custom size": "prefs.internalRenderWidth / 1280.0" in game.read_text() and 'nativeSetOption("PES17_SCALE", "1")' in game.read_text(),
-              "Renderer supports up to 3x": "std::clamp(asked, 0.5, deviceScaleLimit)" in renderer.read_text() and "ceiling_, 48" in dyn.read_text(),
+              "Renderer supports up to 3x": "std::clamp(asked, 0.5, deviceScaleLimit)" in renderer.read_text() and "floor_, 48" in dyn.read_text(),
               "Live internal render respects Vulkan limits": "manualProperties.limits.maxImageDimension2D" in frame.read_text(),
               "Quick Graphics scene quality remains enabled": "scene.isEnabled = true" in quick.read_text(),
           }
