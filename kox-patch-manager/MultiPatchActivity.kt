@@ -47,19 +47,19 @@ class MultiPatchActivity : AppCompatActivity() {
             setBackgroundColor(0xFF0B1220.toInt())
         }
         val title = TextView(this).apply {
-            text = "KOX MULTI-PATCH MANAGER"
+            text = "PILIH CPK PATCH"
             textSize = 20f
             setTextColor(0xFF38BDF8.toInt())
             setTypeface(null, android.graphics.Typeface.BOLD)
         }
         page.addView(title)
         page.addView(TextView(this).apply {
-            text = "Tambahkan folder patch yang sudah diekstrak. Urutan sumber dari atas ke bawah menentukan prioritas tertinggi ke terendah."
+            text = "Pilih folder patch hasil ekstrak. Semua file CPK akan ditampilkan agar bisa dipilih satu per satu sebelum instalasi."
             textSize = 13f
             setTextColor(0xFFE2E8F0.toInt())
             setPadding(0, dp(8), 0, dp(12))
         })
-        val add = actionButton("＋  TAMBAH FOLDER PATCH") { folderPicker.launch(null) }
+        val add = actionButton("PILIH FOLDER PATCH") { folderPicker.launch(null) }
         page.addView(add)
         conflictChoice = CheckBox(this).apply {
             text = "Jika nama CPK sama, gunakan sumber dengan prioritas lebih tinggi"
@@ -67,7 +67,7 @@ class MultiPatchActivity : AppCompatActivity() {
             buttonTintList = android.content.res.ColorStateList.valueOf(0xFF38BDF8.toInt())
             setPadding(0, dp(8), 0, dp(8))
         }
-        page.addView(conflictChoice)
+        conflictChoice.visibility = View.GONE
         val scroll = ScrollView(this)
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scroll.addView(list)
@@ -98,7 +98,8 @@ class MultiPatchActivity : AppCompatActivity() {
                 runOnUiThread {
                     // Persist first, then reload from disk so the UI reflects the
                     // exact source set that will survive activity recreation.
-                    sources.removeAll { it.id == id }
+                    sources.forEach { it.directory.deleteRecursively() }
+                    sources.clear()
                     sources += SavedSource(id, root.name?.takeIf { it.isNotBlank() } ?: "Patch $count CPK", destination)
                     persistSources()
                     sources.clear()
@@ -151,11 +152,7 @@ class MultiPatchActivity : AppCompatActivity() {
             return
         }
         val active = File(root, "dlc/SYSTEM00000000")
-        val policy = if (conflictChoice.isChecked) {
-            MultiPatchInstaller.ConflictPolicy.KEEP_HIGHEST_PRIORITY
-        } else {
-            MultiPatchInstaller.ConflictPolicy.REJECT
-        }
+        val policy = MultiPatchInstaller.ConflictPolicy.REJECT
         val dialog = AlertDialog.Builder(this)
             .setTitle("Generate DpFileList gabungan?")
             .setMessage("Sumber: ${sources.size}\nPrioritas: dari atas ke bawah\nHanya CPK yang dicentang akan dipasang. File patch lama tidak dicadangkan.")
@@ -268,9 +265,7 @@ class MultiPatchActivity : AppCompatActivity() {
                 setTextColor(0xFF94A3B8.toInt())
             })
             val controls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            controls.addView(actionButton("↑") { if (index > 0) { sources.add(index - 1, sources.removeAt(index)); persistSources(); renderSources() } }, weight())
-            controls.addView(actionButton("↓") { if (index < sources.lastIndex) { sources.add(index + 1, sources.removeAt(index)); persistSources(); renderSources() } }, weight())
-            controls.addView(actionButton("HAPUS") { source.directory.deleteRecursively(); sources.removeAt(index); persistSources(); renderSources() }, weight())
+            controls.addView(actionButton("GANTI / HAPUS FOLDER") { source.directory.deleteRecursively(); sources.removeAt(index); persistSources(); renderSources() }, weight())
             card.addView(controls)
             list.addView(card, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
