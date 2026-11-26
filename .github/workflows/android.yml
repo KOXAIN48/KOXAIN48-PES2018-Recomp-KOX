@@ -1112,7 +1112,7 @@ jobs:
           settings = root / "android/app/src/main/java/com/pes2017/recomp/SettingsActivity.kt"
           ss = settings.read_text()
           old_bar = """        bar(R.id.render_scale, R.id.render_scale_label, 2, prefs.renderScale - 1,
-                  { getString(R.string.render_scale, it + 1) }) { prefs.renderScale = it + 1 }"""
+                      { getString(R.string.render_scale, it + 1) }) { prefs.renderScale = it + 1 }"""
           if ss.count(old_bar) != 1:
               raise SystemExit("Internal render settings slider anchor mismatch")
           ss = ss.replace(old_bar, "        setupInternalRenderControl()")
