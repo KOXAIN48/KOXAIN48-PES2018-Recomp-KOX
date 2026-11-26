@@ -1100,7 +1100,7 @@ jobs:
           if not all(checks.values()):
               raise SystemExit("KOX patch verification failed")
           PY
-      - name: Wire KOX Multi-Patch screen into PATCHES
+      - name: Add CPK picker inside the PATCHES install section
         working-directory: upstream
         run: |
           python3 - <<'PY'
@@ -1116,38 +1116,35 @@ jobs:
 
           '''
           if xml.count(activity_anchor) != 1:
-              raise SystemExit("Multi-Patch manifest insertion anchor mismatch")
+              raise SystemExit("CPK picker manifest anchor mismatch")
           xml = xml.replace(activity_anchor, activity_block + activity_anchor)
           manifest.write_text(xml)
 
           activity = Path("android/app/src/main/java/com/pes2017/recomp/PatchesActivity.kt")
           source = activity.read_text()
-          anchor = '''        selectFolder.setOnClickListener {
-                      folderPicker.launch(Intent(this, GameFolderActivity::class.java))
-                  }
+          anchor = '''        patchReplace.setOnClickListener { replace(PatchesRepository.SLOT_PATCH) }
           '''
-          block = anchor + '''        val multiPatchButton = Button(this).apply {
-                      text = "MANAGE MULTI-PATCH"
+          block = anchor + '''        val cpkPickerButton = Button(this).apply {
+                      text = "PILIH CPK PATCH"
                       setOnClickListener {
                           startActivity(Intent(this@PatchesActivity, MultiPatchActivity::class.java))
                       }
                   }
-                  (selectFolder.parent as? android.view.ViewGroup)?.let { parent ->
-                      val position = parent.indexOfChild(selectFolder)
-                      parent.addView(
-                          multiPatchButton,
-                          position + 1,
-                          android.view.ViewGroup.LayoutParams(
-                              android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                              android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
-                          ),
-                      )
-                  }
+                  val patchGroup = patchReplace.parent.parent as? android.view.ViewGroup
+                      ?: throw IllegalStateException("PATCH section container not found")
+                  patchGroup.addView(
+                      cpkPickerButton,
+                      patchGroup.indexOfChild(patchReplace.parent) + 1,
+                      android.view.ViewGroup.LayoutParams(
+                          android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                          android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                      ),
+                  )
           '''
           if source.count(anchor) != 1:
-              raise SystemExit("Multi-Patch button insertion anchor mismatch")
+              raise SystemExit("PATCH section CPK button anchor mismatch")
           activity.write_text(source.replace(anchor, block))
-          print("KOX Multi-Patch screen registered and linked from PATCHES.")
+          print("Individual CPK selection is now launched from the PATCH section.")
           PY
 
       - name: Recompile PES2018 XEX and build native ARM64 library
