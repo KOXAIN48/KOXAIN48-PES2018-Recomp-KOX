@@ -7,7 +7,7 @@ import org.junit.Test
 import java.io.File
 
 class MultiPatchInstallerTest {
-    @Test fun mergesSourcesAndKeepsPreviousActiveTreeAsBackup() {
+    @Test fun mergesSourcesAndRemovesPreviousActiveTreeWithoutBackup() {
         val root = createTempDir(prefix = "multi-patch")
         try {
             val first = File(root, "source-stadium").apply { mkdirs() }
@@ -18,7 +18,7 @@ class MultiPatchInstallerTest {
             File(active, "old.cpk").writeBytes(cpk())
             File(active, "DpFileList.bin").writeBytes(DpFileListComposer.compose(listOf("old.cpk")).bytes)
 
-            val report = MultiPatchInstaller(active, File(root, "patch-backups")).install(
+            val report = MultiPatchInstaller(active).install(
                 listOf(
                     MultiPatchInstaller.Source("stadium", "Stadium", first),
                     MultiPatchInstaller.Source("turf", "Turf", second),
@@ -28,7 +28,8 @@ class MultiPatchInstallerTest {
             assertTrue(File(active, "stadium.cpk").isFile)
             assertTrue(File(active, "turf.cpk").isFile)
             assertFalse(File(active, "old.cpk").exists())
-            assertTrue(report.backup?.let { File(it, "old.cpk").isFile } == true)
+            assertFalse(File(root, "patch-backups").exists())
+            assertFalse(File(root, "dlc/SYSTEM00000000.kox-displaced").exists())
             DpFileListComposer.validate(File(active, "DpFileList.bin").readBytes(), report.cpkNames)
         } finally {
             root.deleteRecursively()
@@ -43,7 +44,7 @@ class MultiPatchInstallerTest {
             File(source, "turf.cpk").writeBytes(cpk())
             File(source, "kit.cpk").writeBytes(cpk())
             val active = File(root, "active")
-            val report = MultiPatchInstaller(active, File(root, "backups")).install(
+            val report = MultiPatchInstaller(active).install(
                 listOf(
                     MultiPatchInstaller.Source(
                         "source",
@@ -74,7 +75,7 @@ class MultiPatchInstallerTest {
             File(active, "keep.cpk").writeBytes(cpk())
 
             val error = runCatching {
-                MultiPatchInstaller(active, File(root, "backups")).install(
+                MultiPatchInstaller(active).install(
                     listOf(
                         MultiPatchInstaller.Source("a", "A", first),
                         MultiPatchInstaller.Source("b", "B", second),
@@ -96,7 +97,7 @@ class MultiPatchInstallerTest {
             File(first, "ball.cpk").writeBytes(cpk(0xFF))
             File(second, "BALL.CPK").writeBytes(cpk(0x00))
             val active = File(root, "active")
-            val report = MultiPatchInstaller(active, File(root, "backups")).install(
+            val report = MultiPatchInstaller(active).install(
                 listOf(
                     MultiPatchInstaller.Source("high", "Higher", first),
                     MultiPatchInstaller.Source("low", "Lower", second),
