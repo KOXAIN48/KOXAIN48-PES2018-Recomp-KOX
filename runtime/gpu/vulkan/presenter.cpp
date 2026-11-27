@@ -922,9 +922,11 @@ namespace
         // is off or cannot run.
         const uint32_t pictureWidth = uint32_t(blit.dstOffsets[1].x - blit.dstOffsets[0].x);
         const uint32_t pictureHeight = uint32_t(blit.dstOffsets[1].y - blit.dstOffsets[0].y);
-        const VkImage upscaled = vk::upscale::Enabled()
+        const bool fullSource = sourceX == 0 && sourceY == 0 &&
+                                sourceWidth == width && sourceHeight == height;
+        const VkImage upscaled = (fullSource && vk::upscale::Enabled())
             ? vk::upscale::Record(g.device, g.physical, frame.commands, g.frameIndex, picture,
-                                  sourceWidth, sourceHeight, pictureWidth, pictureHeight)
+                                  width, height, pictureWidth, pictureHeight)
             : VK_NULL_HANDLE;
         (upscaled ? g.upscaledPresents : g.blitPresents).fetch_add(1, std::memory_order_relaxed);
         if (upscaled)
