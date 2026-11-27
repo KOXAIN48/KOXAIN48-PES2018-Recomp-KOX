@@ -4,7 +4,7 @@ name: KOX PES2018 Android APK # Rebuild after per-CPK selection UI
 'on':
   workflow_dispatch:
   push:
-    branches: [ main, kox-live-controls-development ]
+    branches: [ main, kox-live-controls-development, kox-vulkan-xy-render-scale ]
 
 permissions:
   contents: read
@@ -1402,6 +1402,21 @@ jobs:
               print(f"{name}: {'OK' if ok else 'MISSING'}")
           if not all(checks.values()):
               raise SystemExit("KOX patch verification failed")
+          PY
+      - name: Install KOX Vulkan X/Y-aware presenter
+        working-directory: upstream
+        run: |
+          mkdir -p runtime/gpu/vulkan
+          cp ../runtime/gpu/vulkan/presenter.cpp runtime/gpu/vulkan/presenter.cpp
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("runtime/gpu/vulkan/presenter.cpp")
+          s = p.read_text()
+          required = ["const uint32_t sourceWidth", "sourceHeight", "Letterbox(sourceWidth, sourceHeight", "blit.srcOffsets[0]"]
+          missing = [x for x in required if x not in s]
+          if missing:
+              raise SystemExit("KOX presenter X/Y mapping verification failed: " + ", ".join(missing))
+          print("KOX presenter X/Y mapping: OK")
           PY
       - name: Add CPK picker inside the PATCHES install section
         working-directory: upstream
