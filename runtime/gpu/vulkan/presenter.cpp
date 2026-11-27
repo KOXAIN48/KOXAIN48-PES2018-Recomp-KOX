@@ -890,7 +890,7 @@ namespace
             if (requestedAspect > sourceAspect)
             {
                 sourceHeight = std::max(1u, uint32_t(double(width) / requestedAspect + 0.5));
-                sourceY = (height - sourceHeight) / 2;
+                sourceY = 0; // Keep the top HUD/scoreboard visible; trim the excess height from the bottom.
             }
             else if (requestedAspect < sourceAspect)
             {
