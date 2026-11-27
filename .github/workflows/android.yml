@@ -1412,7 +1412,7 @@ jobs:
           from pathlib import Path
           p = Path("runtime/gpu/vulkan/presenter.cpp")
           s = p.read_text()
-          required = ["const uint32_t sourceWidth", "sourceHeight", "Letterbox(sourceWidth, sourceHeight", "blit.srcOffsets[0]"]
+          required = ["uint32_t sourceX = 0, sourceY = 0, sourceWidth = width, sourceHeight = height;", "Letterbox(sourceWidth, sourceHeight", "blit.srcOffsets[0]", "blit.srcOffsets[1]"]
           missing = [x for x in required if x not in s]
           if missing:
               raise SystemExit("KOX presenter X/Y mapping verification failed: " + ", ".join(missing))
